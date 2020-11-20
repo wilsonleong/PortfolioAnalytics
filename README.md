@@ -1,6 +1,6 @@
 # Consolidated Investment Portfolio Analytics
 
-#PortfolioAnalytics #MarketData #FX
+#PortfolioAnalytics #MarketData #FX #Equities #ETFs #MutualFunds
 #Python #pandas #matplotlib #API 
 #MongoDB #NoSQL 
 
