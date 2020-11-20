@@ -18,7 +18,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 5. plots evolution of investment cost vs valuation over time in a single currency
 6. automated PAD reporting
 
-Example output: https://github.com/wilsonleong/PortfolioAnalytics/wiki
+Example output: https://github.com/wilsonleong/PortfolioAnalytics/wiki/Consolidated-Investment-Portfolio-Analytics
 
 ## Libraries used
 * numpy
