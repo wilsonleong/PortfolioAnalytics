@@ -13,3 +13,27 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 4. displays top holdings
 5. plots evolution of investment cost vs valuation over time in a single currency
 6. automated PAD reporting
+
+## Libraries used
+* numpy
+* pandas
+* datetime
+* dateutil
+* pymongo
+* matplotlib
+* yfinance
+
+## Modules
+
+**calc.py**
+
+**main.py**
+
+**mdata.py**
+
+**pad.py**
+
+**setup.py**
+
+**viz.py**
+
