@@ -97,6 +97,4 @@ TimeTaken = timer_end - timer_start
 print ('\nModule "%s" finished running in %s.\n' % (os.path.basename(sys.argv[0]), TimeTaken))
 
 # delete unused variables
-#del MongoServer, MongoDatabaseName
 del timer_start, timer_end, TimeTaken
-#del Currencies
