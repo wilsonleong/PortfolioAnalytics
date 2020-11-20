@@ -3,7 +3,7 @@
 #Python #pandas #matplotlib #API #MongoDB #NoSQL #FX #PortfolioAnalytics #MarketData
 
 ## Problem statement
-1. My investment accounts are scattered across different brokers in multiple currencies.
+1. My investment accounts are scattered across different brokers in multiple currencies (GBP, SGD, HKD) thanks to my work history.
 2. PAD (Personal Account Dealing) reporting to my employer's Compliance department is manual and very time-consuming.
 3. There is no holistic view of overall performance or composition of my portfolio to aid my investment decisions.
 
