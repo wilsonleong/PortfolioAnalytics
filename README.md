@@ -1,5 +1,7 @@
 # Consolidated Investment Portfolio Analytics
 
+#Python #pandas #matplotlib #API #MongoDB #NoSQL #FX #PortfolioAnalytics #MarketData
+
 ## Problem statement
 1. My investment accounts are scattered across different brokers in multiple currencies.
 2. PAD (Personal Account Dealing) reporting to my employer's Compliance department is manual and very time-consuming.
