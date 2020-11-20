@@ -26,36 +26,36 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 ## Modules
 
 **main.py**
-Runs the main application
+* Runs the main application
 
 **setup.py**
-Connects to MongoDB
-Platform and securities referential
-Transactions processing
-Weighted average cost calculation (when selling)
+* Connects to MongoDB
+* Platform and securities referential
+* Transactions processing
+* Weighted average cost calculation (when selling)
 
 **mdata.py**
-Yahoo Finance API
-Get historical NAV
-Get historical FX rates
+* Yahoo Finance API
+* Get historical NAV
+* Get historical FX rates
 
 **calc.py**
-FX conversions
-Latest NAV
-Portfolio summary
-Realised and unrealised PnL
-TWRR: Modified Dietz Return
-MWRR: Internal Rate of Return
-Yahoo Finance API (historical prices, FX rates)
-Historical cost vs valuation
+* FX conversions
+* Latest NAV
+* Portfolio summary
+* Realised and unrealised PnL
+* TWRR: Modified Dietz Return
+* MWRR: Internal Rate of Return
+* Yahoo Finance API (historical prices, FX rates)
+* Historical cost vs valuation
 
 **viz.py**
-Displays summary (PnL, returns %)
-Historical cost vs valuation (supported instruments only: stocks, ETFs, some mutual funds)
-Portfolio composition
-Top holdings
+* Displays summary (PnL, returns %)
+* Historical cost vs valuation (supported instruments only: stocks, ETFs, some mutual funds)
+* Portfolio composition
+* Top holdings
 
 **pad.py**
-PAD reporting
-Transactions list
-Holdings summary (balance b/f and c/f)
+* PAD reporting
+* Transactions list
+* Holdings summary (balance b/f and c/f)
