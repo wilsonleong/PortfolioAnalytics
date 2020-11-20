@@ -50,8 +50,8 @@ Example output: https://github.com/wilsonleong/PortfolioAnalytics/wiki/Consolida
 * Latest NAV
 * Portfolio summary
 * Realised and unrealised PnL
-* TWRR: Modified Dietz Return
-* MWRR: Internal Rate of Return
+* TWRR: Modified Dietz Return (time weighted, suitable measurement for a fund manager)
+* MWRR: Internal Rate of Return (money weighted, suitable measurement for an individual investor)
 * Yahoo Finance API (historical prices, FX rates)
 * Historical cost vs valuation
 
