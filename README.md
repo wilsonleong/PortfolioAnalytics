@@ -22,6 +22,7 @@ Example output: https://github.com/wilsonleong/PortfolioAnalytics/wiki/Consolida
 
 ## Libraries used
 * numpy
+* scipy
 * pandas
 * datetime
 * dateutil
