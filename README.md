@@ -12,7 +12,7 @@
 ## Solution
 I built my own portfolio analytics tool that consolidates all my transactions across countries and brokers, connects to Yahoo Finance API for historical market data (NAV and FX rates), handles the FX conversions, and produces the following output:
 1. consolidated investments with NAV, realised & unrealised PnL in a single currency
-2. calculates returns % (both TWRR and MWRR) including withdrawals and deposits
+2. calculates returns % (both time-weighted and money-weighted) including withdrawals and deposits
 3. calculates composition of portfolio by predefined categories/static referential data
 4. displays top holdings
 5. plots evolution of investment cost vs valuation over time in a single currency
