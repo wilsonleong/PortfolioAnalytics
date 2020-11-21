@@ -19,7 +19,6 @@ import pymongo
 import numpy as np
 import pandas as pd
 import datetime
-#from calc import *
 import mdata
 
 
@@ -56,7 +55,6 @@ def InsertSecurity(db,
                    FundManager,
                    YahooFinanceTicker
                    ):
-#    db = ConnectToMongoDB()
     Security = db['Security']
 
     # data validation
@@ -190,25 +188,6 @@ def InsertTransaction(db,
         print ('(Transaction added: %s | %s: %s)' % (Date, "{:,.2f}".format(CostInPlatformCcy), BBGCode))
 
 
-# function to collect latest FX rates for ccypairs
-# def UpdateLatestFXrates():
-#     # get the list of ccypairs
-#     #print ('\nCollecting latest FX rates from Bloomberg...')
-#     print ('\nCollecting latest FX rates from Excel spreadsheet...')
-#     df = pd.read_excel(_setupfile, sheet_name='FX')
-#     #df = pd.read_excel(_FXfile, sheet_name='Sheet1')
-#     df['LastUpdated'] = datetime.datetime.now()
-
-#     # changed 21 Nov 2018 (without BBG connection for market data)
-#     df.rename({'Rate':'PX_LAST'}, axis=1, inplace=True)
-
-#     # remove old records
-#     db = ConnectToMongoDB()
-#     coll = db['FX']
-#     coll.delete_many({})
-#     coll.insert_many(df.to_dict('records'))
-#     print ('(updated latest FX rates on mongodb)')
-
 def UpdateLatestFXrates():
     # get the list of ccypairs
     print ('\nCollecting latest FX rates from Yahoo Finance...')
@@ -223,7 +202,6 @@ def UpdateLatestFXrates():
         df.loc[i,'LastUpdated'] = tmp['last_updated']
     
     # save latest rates into file
-    #df['LastUpdated'] = datetime.datetime.now()
     df.to_excel(_FXfile, index=False)
 
     # changed 21 Nov 2018 (without BBG connection for market data) - rename before pushing into MongoDB
@@ -246,10 +224,7 @@ def InitialSetup():
     db['Platform'].delete_many({})
     db['Security'].delete_many({})
     
-    # TO DO --> load from Excel setup spreadsheet instead
-    #SetupFile = r'C:\Users\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\setup.xlsx'
     SetupFile = _setupfile
-
 
     # initial setup of platforms
     dfPlatforms = pd.read_excel(SetupFile, sheet_name='Platform')
@@ -258,10 +233,6 @@ def InitialSetup():
         name = row.PlatformName
         ccy = row.PlatformCurrency
         InsertPlatform(name, ccy)
-#    InsertPlatform('Cash', 'SGD')
-#    InsertPlatform('TD UK', 'GBP')
-#    InsertPlatform('FSM SG', 'SGD')
-#    InsertPlatform('FSM HK', 'HKD')
 
     # initial setup of securities
     df = pd.read_excel(SetupFile, sheet_name='Security')
@@ -292,11 +263,7 @@ def InsertHistTransactions():
     transfile = _setupfile
     t = pd.read_excel(transfile, sheet_name='Transactions')
     t.drop(['SecurityName'], axis=1, inplace=True)
-    
-#    t.rename(columns={'Investment Amount':'Cost','Units Bought':'NoOfUnits','Price':'PriceInPlatformCcy'}, inplace=True)
 
-#    db = ConnectToMongoDB()
-#    Transactions = db['Transactions']
     ns = 1e-9
     for i in range(len(t)):
         Platform = t.iloc[i].Platform
@@ -305,14 +272,11 @@ def InsertHistTransactions():
         Type = t.iloc[i].Type
         BBGCode = t.iloc[i].BBGCode
         CostInPlatformCcy = round(t.iloc[i].CostInPlatformCcy,2)
-#        CostInSecurityCcy = round(t.iloc[i].CostInSecurityCcy,2)
-#        PriceInPlatformCcy = t.iloc[i].PriceInPlatformCcy
         PriceInSecurityCcy = t.iloc[i].PriceInSecurityCcy
         Quantity = t.iloc[i].Quantity
         Dividend = t.iloc[i].Dividend if str(t.iloc[i].Dividend)!='nan' else None
         Comment = t.iloc[i].Comment if str(t.iloc[i].Comment)!='nan' else None
         InsertTransaction(db, Platform, Date, Type, BBGCode, CostInPlatformCcy, PriceInSecurityCcy, Quantity, Dividend, Comment)
-#    Transactions.insert_many(dic)
     print ('(%d transactions added)' % len(t))
 
 
@@ -337,15 +301,3 @@ def GetYahooFinanceTicker(bbgcode):
     df = sec[sec.BBGCode==bbgcode]
     ticker = df.YahooFinanceTicker.iloc[0]
     return ticker
-
-
-
-
-
-
-
-
-
-
-
-

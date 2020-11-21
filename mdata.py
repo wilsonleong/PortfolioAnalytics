@@ -6,9 +6,7 @@ Created on Thu Oct 29 21:00:31 2020
 """
 
 ### Parameters ###
-
 LastNavFilePath = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\LastNAV.xlsx'
-
 ### End of parameters ###
 
 

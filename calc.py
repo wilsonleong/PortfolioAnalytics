@@ -25,25 +25,6 @@ import mdata
 _special_ccys = ['AUD','NZD','EUR','GBP']    # those ccys that don't use USD as base ccy
 _last_nav_file = mdata.LastNavFilePath
 
-
-# function to get latest FX rate collected on mongodb
-# def _GetLatestFXrate(ccypair):
-#     # requirement 1: ccypair must be in standard market convention
-#     # requirement 2: ccypair must be in the list collected from bbg
-#     ccypair = ccypair.upper()
-
-#     # get the last updated rates from mongodb (the update should be run as part of the main)
-#     db = ConnectToMongoDB()
-#     fx_ccypair = pd.DataFrame(list(db.FX.find({})))
-#     fx_ccypair = fx_ccypair[fx_ccypair.Ccypair==ccypair]
-
-#     if len(fx_ccypair):
-#         fx = fx_ccypair.PX_LAST.iloc[0]
-#     else:
-#         fx = None
-#         print ('\nERROR: %s needs to be added to the list' % ccypair)
-#     return fx
-
 # function to get latest FX rate from Yahoo Finance
 def _GetLatestFXrate(ccypair):
     # requirement 1: ccypair must be in standard market convention
@@ -167,9 +148,6 @@ def GetLastNAV():
     tran_summary.rename(columns={'SecurityCcy':'SecurityCurrency'}, inplace=True)
     tran_summary.drop(columns=['PlatformCcy','NoOfUnits'], inplace=True)
 
-    #print ('(%d securities successfully collected from Excel spreadsheet)' % len(tran_summary))
-    #tran_summary.to_csv('LastNAV.csv', index=False)
-
     # save results on MongoDB
     db = ConnectToMongoDB()
     LastNAV = db['LastNAV']
@@ -205,8 +183,6 @@ def GetPortfolioSummary():
     lastnav = GetLastNAV()
     
     summary = summary.merge(lastnav[['BBGCode','LastNAV','SecurityCurrency']], how='left', left_on='BBGCode', right_on='BBGCode')
-    #summary = pd.merge(summary, lastnav, how='left', left_on='BBGCode', right_on='BBGCode')
-    #summary.drop(['FXRate'], axis=1, inplace=True)
     
     # added 22 Nov 2018 (remove unused stock code)
     summary = summary[summary.SecurityCurrency.notnull()]
@@ -216,16 +192,12 @@ def GetPortfolioSummary():
         #summary.loc[i,'FXConversionRate'] = GetFXRate(summary.loc[i,'PlatformCurrency'], summary.loc[i,'SecurityCurrency'])
         summary.loc[i,'FXConversionRate'] = ConvertFX(summary.loc[i,'SecurityCurrency'], summary.loc[i,'PlatformCurrency'])
         summary['CurrentValue'] = summary.NoOfUnits * summary.LastNAV * summary.FXConversionRate / summary.BBGPriceMultiplier
-#    summary['CurrentValue'] = summary.NoOfUnits * summary.LastNAV * summary.FXRate / summary.BBGPriceMultiplier
     summary.CurrentValue = summary.CurrentValue.round(2)
     summary['PnL'] = summary.CurrentValue - summary.CostInPlatformCcy #- summary.RealisedPnL
     summary.PnL = summary.PnL.round(2)
-#    summary_WithLastNAVTimestamp = summary[['BBGCode','LastNAVTimestamp']]
     agg2 = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'CurrentValue':sum, 'PnL':sum, 'RealisedPnL':sum}
-    #agg2 = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'CurrentValue':sum, 'PnL':sum}
     ps = summary.groupby(['Platform','PlatformCurrency','Name','BBGCode','LastNAV']).agg(agg2)
     ps.reset_index(inplace=True)
-#    ps = pd.merge(ps, summary_WithLastNAVTimestamp, how='left', left_on='BBGCode', right_on='BBGCode')
 
     ps['PnLPct'] = ps.PnL / ps.CostInPlatformCcy
 
@@ -384,11 +356,8 @@ def CalcModDietzReturn(platform, bbgcode=None, period=None):
 
     # calculate No of days for weighting    
     cf.loc[:,'NoOfDays'] = (datetime.datetime.today() - cf.loc[:,'Date']) / pd.Timedelta(days=1)
-    #cf['NoOfDays'] = (datetime.datetime.today() - cf.Date) / pd.Timedelta(days=1)
     cf.loc[:,'NoOfDays'] = cf.loc[:,'NoOfDays'].astype(int)
-    #cf['NoOfDays'] = cf['NoOfDays'].astype(int)
     cf.loc[:,'WeightedCF'] = cf.loc[:,'CostInPlatformCcy'] * cf.loc[:,'NoOfDays'] / date_diff
-    #cf['WeightedCF'] = cf.CostInPlatformCcy * cf['NoOfDays'] / date_diff
     
     # pnl = current value + realised gains/losses
     
@@ -402,7 +371,6 @@ def CalcModDietzReturn(platform, bbgcode=None, period=None):
             # current value needs to include realised gains & dividends
             current_value = r.CurrentValue + pnl_realised
     else:
-        #ps = GetPortfolioSummary()
         ps_active = ps[ps.CurrentValue!=0]
         r = ps_active[ps_active.Platform==platform]
         # current value needs to include realised gains & dividends

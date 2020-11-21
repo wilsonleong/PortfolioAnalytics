@@ -34,9 +34,7 @@ def DisplaySummary():
     # historical realised PnL
     print ('\n*** Realised PnL (not inc. platform fees) ***')
     pnl = GetHistoricalRealisedPnL()
-#    print (pnl)
     
-#    print ('\n *** Total Realised PnL ***')
     pnl = pnl.reset_index()
     print ('')
     print (pnl.groupby(['Platform','PlatformCurrency']).sum())
@@ -165,10 +163,14 @@ def PlotCostvsVal():
     
     # create the plots
     fig, ax = plt.subplots()    # can set dpi=150 or 200 for bigger image; figsize=(8,6)
-    #ax.set_title('US ETF Portfolio: Investment Amount vs Current Value')
-    
     title = 'US ETFs: Investment Cost vs Current Value as of %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
-    ax.set(title=title)
+    
+    # add subtitle with return %
+    ar_etf = CalcIRR(platform='FSM HK')
+    subtitle = '%s since inception' % '{0:.2%}'.format(ar_etf)
+    
+    fig.suptitle(title, fontsize=12)
+    ax.set(title=subtitle)
     
     ax.set_ylabel('Amount (HKD)')
     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
@@ -177,12 +179,15 @@ def PlotCostvsVal():
     x1 = df.Date
     y1 = df.AccumCostHKD
     #ax.plot(x1, y1, marker='.', linestyle='-')
-    ax.plot(x1, y1, linestyle='-')
+    ax.plot(x1, y1, linestyle='-', label='Investment cost')
     
     # plot the valuation
     x2 = df.Date
     y2 = df.ValuationHKD
-    ax.plot(x2, y2, linestyle='-', color='orange')
+    ax.plot(x2, y2, linestyle='-', color='orange', label='Valuation')
+    
+    # add legend
+    ax.legend(frameon=False, loc='lower center', ncol=2)
     
     # add annotation: 01 Sep 2020 transfer of XLE VWO from Singapore account
     x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
@@ -203,16 +208,6 @@ def PlotCostvsVal():
                 textcoords='offset points', 
                 arrowprops=dict(arrowstyle='-|>')
                 )
-    
-    # # add annotation: 10 Sep 2020 invest redundancy payout lumpsum
-    # x2_pos = x2[x2 == datetime.datetime(2020, 9, 10)].index
-    # ax.annotate('10 Sep 2020: Lumpsum from redundancy',
-    #             #(mdates.date2num(x[1]), y[1]),
-    #             xy=('2020-09-10', y2.iloc[x2_pos]),
-    #             xytext=(-200, -30),
-    #             textcoords='offset points', 
-    #             arrowprops=dict(arrowstyle='-|>')
-    #             )
     
     #fig.autofmt_xdate(rotation=45)
     plt.xticks(rotation=45, ha='right')
@@ -245,15 +240,3 @@ def PlotTopHoldings():
         ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
     plt.gca().invert_yaxis()
     plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
