@@ -10,7 +10,7 @@
 3. There is no holistic view of overall performance or composition of my portfolio to aid my investment decisions.
 
 ## Solution
-I built my own portfolio analytics tool that consolidates all my transactions across countries and brokers, connects to Yahoo Finance API for historical market data (NAV and FX rates), handles the FX conversions, and produces the following output:
+I built my own portfolio analytics tool that consolidates all my transactions across countries and brokers, connects to Yahoo Finance via API for historical market data (NAV and FX rates), handles the FX conversions, and produces the following output:
 1. consolidated investments with NAV, realised & unrealised PnL in a single currency
 2. calculates returns % (both time-weighted and money-weighted) including withdrawals and deposits
 3. calculates composition of portfolio by predefined categories/static referential data
