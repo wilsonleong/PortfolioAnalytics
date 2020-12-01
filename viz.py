@@ -72,7 +72,7 @@ def DisplaySummary():
     print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
     print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
     print ('')
-    print ('Performance of US ETFs (MWRR / IRR):')
+    print ('Performance of Yahoo Finance supported instruments (MWRR / IRR):')
     print ('> Since Inception: \t\t' + '{:,.2%}'.format(ar_etf))
     print ('> 1W:              \t\t' + '{:,.2%}'.format(ar_etf_1W))
     print ('> 1M:              \t\t' + '{:,.2%}'.format(ar_etf_1M))
@@ -105,48 +105,31 @@ def DisplaySummary():
     plt.show()
 
 
-    # fig, axs = plt.subplots(ncols=1, figsize=(10,5))
-    # import seaborn as sns
-    # sns.set(style='whitegrid')
-    # ax = sns.barplot(y='Category',
-    #                  x='Percentage',
-    #                  data=pct[['Category','Percentage']],
-    #                  orient='h',
-    #                  hue=None
-    #                  )
-    # ax.set_title('Total investments by category in HKD equivalent')
+    # 2020-12-01: plot donut chart
+    labels_with_pct = []
+    for i in range(len(labels)):
+        labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
+    fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
+    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-40)
+    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+    bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
+    kw = dict(arrowprops=dict(arrowstyle="-"),
+              bbox=bbox_props, zorder=0, va="center")
+    for i, p in enumerate(wedges):
+        ang = (p.theta2 - p.theta1)/2. + p.theta1
+        y = np.sin(np.deg2rad(ang))
+        x = np.cos(np.deg2rad(ang))
+        horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
+        connectionstyle = "angle,angleA=0,angleB={}".format(ang)
+        kw["arrowprops"].update({"connectionstyle": connectionstyle})
 
-    
-    # # pcts as pie
-    # labels = list(pct.Category)
-    # sizes = list(pct.pct)
-    # explode = [0.1] * len(labels)
-    # fig1, ax1 = plt.subplots()
-    # ax1.pie(sizes, labels=labels, autopct='%1.2f%%', explode=explode)
-    # ax1.axis('equal')
-    # ax1.set(title='Portfolio Composition (in HKD equivalent)')
-    # plt.show()
-    
-    
-    # # example pie chart
-    # fig, ax = plt.subplots()
-    
-    # size = 0.3
-    # vals = np.array([[60., 32.], [37., 40.], [29., 10.]])
-    
-    # cmap = plt.get_cmap("tab20c")
-    # outer_colors = cmap(np.arange(3)*4)
-    # inner_colors = cmap([1, 2, 5, 6, 9, 10])
-    
-    # ax.pie(vals.sum(axis=1), radius=1, colors=outer_colors,
-    #        wedgeprops=dict(width=size, edgecolor='w'))
-    
-    # ax.pie(vals.flatten(), radius=1-size, colors=inner_colors,
-    #        wedgeprops=dict(width=size, edgecolor='w'))
-    
-    # ax.set(aspect="equal", title='Portfolio Composition (in HKD equivalent)')
-    # plt.show()
+        #ax.annotate(labels_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),
+        #            horizontalalignment=horizontalalignment, **kw, fontsize=7)
 
+    ax.set_title(title)
+    #plt.legend(wedges, labels_with_pct, loc='center', bbox_to_anchor=(-0.1, 1.), fontsize=8)
+    plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
+    plt.show()
 
 
 # plot line of costs for US ETF portfolio
@@ -163,11 +146,11 @@ def PlotCostvsVal():
     
     # create the plots
     fig, ax = plt.subplots()    # can set dpi=150 or 200 for bigger image; figsize=(8,6)
-    title = 'US ETFs: Investment Cost vs Current Value as of %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
+    title = 'Investment Cost vs Valuation as of %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
     # add subtitle with return %
     ar_etf = CalcIRR(platform='FSM HK')
-    subtitle = '%s since inception' % '{0:.2%}'.format(ar_etf)
+    subtitle = 'Performance since inception: %s' % '{0:.2%}'.format(ar_etf)
     
     fig.suptitle(title, fontsize=12)
     ax.set(title=subtitle)
@@ -191,22 +174,20 @@ def PlotCostvsVal():
     
     # add annotation: 01 Sep 2020 transfer of XLE VWO from Singapore account
     x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
-    ax.annotate('1 Sep 2020: Transfer in VWO and XLE',
-                #(mdates.date2num(x[1]), y[1]),
+    ax.annotate('Transfer in; built up positions',
                 xy=('2020-09-01', y2.iloc[x2_pos]),
                 xytext=(-200, 10),
-                textcoords='offset points', 
-                arrowprops=dict(arrowstyle='-|>')
+                textcoords='offset points', color='gray',
+                arrowprops=dict(arrowstyle='-|>', color='gray')
                 )
-    
-    # add annotation: 03 Sep 2020 built up position
-    x2_pos = x2[x2 == datetime.datetime(2020, 9, 3)].index
-    ax.annotate('3 Sep 2020: Built up positions',
-                #(mdates.date2num(x[1]), y[1]),
-                xy=('2020-09-03', y2.iloc[x2_pos]),
-                xytext=(-200, 0),
-                textcoords='offset points', 
-                arrowprops=dict(arrowstyle='-|>')
+
+    # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in Tech
+    x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
+    ax.annotate('Took profit from Airlines, reinvested in Tech',
+                xy=('2020-11-24', y2.iloc[x2_pos]),
+                xytext=(-250, 0),
+                textcoords='offset points', color='gray',
+                arrowprops=dict(arrowstyle='-|>', color='gray')
                 )
     
     #fig.autofmt_xdate(rotation=45)
