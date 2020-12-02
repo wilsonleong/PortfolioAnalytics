@@ -201,6 +201,11 @@ def GetPortfolioSummary():
 
     ps['PnLPct'] = ps.PnL / ps.CostInPlatformCcy
 
+    # added 2 Dec 2020    
+    sec = sec[['BBGCode','AssetType','Currency']]
+    sec.rename(columns={'AssetType':'SecurityType','Currency':'SecurityCcy'}, inplace=True)
+    ps = ps.merge(sec, how='left', left_on='BBGCode', right_on='BBGCode')
+
     # export Portfolio Summary for later use
     ps.to_csv('PortfolioSummary.csv', index=False)
     UploadLatestPortfolioSummary(ps)
@@ -295,16 +300,15 @@ def GetPnLUnrealised():
 
 
 def GetPortfolioComposition(target_ccy='HKD'):
-    PnLByPlatformAndAccount = GetPnLUnrealised()['PnLByPlatformAndAccount']
-    pcr = PnLByPlatformAndAccount.reset_index()
+    #PnLByPlatformAndAccount = GetPnLUnrealised()['PnLByPlatformAndAccount']
+    #pcr = PnLByPlatformAndAccount.reset_index()
+    pcr = ps.copy()
     for i in range(len(pcr)):
         row = pcr.loc[i]
-        
         # get HKD equivalent amount
         ccy = row.PlatformCurrency
         value_ccy = row.CurrentValue
         pcr.loc[i, 'CurrentValueInHKD'] = ConvertTo(target_ccy, ccy, value_ccy)
-        
         # get Category
         sec_name = row.Name
         pcr.loc[i, 'Category'] = _GetSecurityCategory(sec_name)
@@ -697,6 +701,29 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
         df = df[df.Platform==platform]
     if bbgcode is not None:
         df = df[df.BBGCode==bbgcode]
+
+
+
+
+
+
+    # start date as 1 Jan 2020 (HARDCODED)
+    start_date = datetime.datetime(2020,1,1)
+    df = df[df.Date>start_date]
+    # need to add balance brought forward
+    # add cost of existing holding
+    # add valuation of existing holdings even if no trading in the year
+
+
+
+
+
+
+
+
+
+
+
 
     # filter on date range for the transactions / cashflows
     if period is not None:

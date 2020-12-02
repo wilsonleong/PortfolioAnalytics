@@ -72,7 +72,7 @@ def DisplaySummary():
     print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
     print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
     print ('')
-    print ('*** BUGGED *** Performance of Yahoo Finance supported instruments (money-weighted):')
+    print ('*** BUGGED (need to include b/f) *** Performance of Yahoo Finance supported instruments (money-weighted):')
     print ('> YTD: \t\t' + '{:,.2%}'.format(ar_etf))
     print ('> 1W:  \t\t' + '{:,.2%}'.format(ar_etf_1W))
     print ('> 1M:  \t\t' + '{:,.2%}'.format(ar_etf_1M))
@@ -105,7 +105,7 @@ def DisplaySummary():
     plt.show()
 
 
-    # 2020-12-01: plot donut chart
+    # 2020-12-01: plot donut chart by category
     labels_with_pct = []
     for i in range(len(labels)):
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
@@ -129,7 +129,47 @@ def DisplaySummary():
     #plt.legend(wedges, labels_with_pct, loc='center', bbox_to_anchor=(-0.1, 1.), fontsize=8)
     plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
     plt.show()
+    
+    PlotPortfolioComposition('SecurityCcy')
+    PlotPortfolioComposition('SecurityType')
 
+
+# 2020-12-02: plot donut chart by security currency
+def PlotPortfolioComposition(by='SecurityCcy'):
+    #by='SecurityType'
+    if by=='SecurityCcy':
+        title = 'Currency Exposure'
+    elif by=='SecurityType':
+        title = 'Asset Allocation'
+    title = title + ' as of %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
+    
+    pcr = GetPortfolioComposition()
+    pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
+    pct.reset_index(inplace=True)
+    total = pct.CurrentValueInHKD.sum()
+    pct['Percentage'] = pct['CurrentValueInHKD']/pct.CurrentValueInHKD.sum()
+    
+    categories = pct[by]
+    values = pct.Percentage
+    categories_with_pct = []
+    for i in range(len(categories)):
+        categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
+    fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
+    wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=-40)
+    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+    bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
+    kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
+    for i, p in enumerate(wedges):
+        ang = (p.theta2 - p.theta1)/2. + p.theta1
+        y = np.sin(np.deg2rad(ang))
+        x = np.cos(np.deg2rad(ang))
+        horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
+        connectionstyle = "angle,angleA=0,angleB={}".format(ang)
+        kw["arrowprops"].update({"connectionstyle": connectionstyle})
+        ax.annotate(categories_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
+    ax.set_title(title)
+    #plt.legend(wedges, categories_with_pct, loc='center', fontsize=8)
+    plt.show()
 
 # plot line of costs for US ETF portfolio
 def PlotCostvsVal():
@@ -183,7 +223,7 @@ def PlotCostvsVal():
 
     # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in Tech
     x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
-    ax.annotate('Took profit from Airlines, reinvested in Tech',
+    ax.annotate('Took profit from Airlines, reinvested in Innovation',
                 xy=('2020-11-24', y2.iloc[x2_pos]),
                 xytext=(-275, 0),
                 textcoords='offset points', color='gray',
