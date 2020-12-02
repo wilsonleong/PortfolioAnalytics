@@ -68,18 +68,18 @@ def DisplaySummary():
     ar_etf_1Y = CalcIRR(platform='FSM HK', period='1Y')
     ar_etf_3Y = CalcIRR(platform='FSM HK', period='3Y')
     print ('')
-    print ('Annualised returns from inception (TWRR / Modified Dietz Return):')
+    print ('Annualised returns from inception (time-weighted):')
     print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
     print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
     print ('')
-    print ('Performance of Yahoo Finance supported instruments (MWRR / IRR):')
-    print ('> Since Inception: \t\t' + '{:,.2%}'.format(ar_etf))
-    print ('> 1W:              \t\t' + '{:,.2%}'.format(ar_etf_1W))
-    print ('> 1M:              \t\t' + '{:,.2%}'.format(ar_etf_1M))
-    print ('> 3M:              \t\t' + '{:,.2%}'.format(ar_etf_3M))
-    print ('> 6M:              \t\t' + '{:,.2%}'.format(ar_etf_6M))
-    print ('> 1Y:              \t\t' + '{:,.2%}'.format(ar_etf_1Y))
-    print ('> 3Y:              \t\t' + '{:,.2%}'.format(ar_etf_3Y))
+    print ('*** BUGGED *** Performance of Yahoo Finance supported instruments (money-weighted):')
+    print ('> YTD: \t\t' + '{:,.2%}'.format(ar_etf))
+    print ('> 1W:  \t\t' + '{:,.2%}'.format(ar_etf_1W))
+    print ('> 1M:  \t\t' + '{:,.2%}'.format(ar_etf_1M))
+    print ('> 3M:  \t\t' + '{:,.2%}'.format(ar_etf_3M))
+    print ('> 6M:  \t\t' + '{:,.2%}'.format(ar_etf_6M))
+    print ('> 1Y:  \t\t' + '{:,.2%}'.format(ar_etf_1Y))
+    print ('> 3Y:  \t\t' + '{:,.2%}'.format(ar_etf_3Y))
     print ('')
 
     # plot chart: portfolio composition
@@ -113,8 +113,7 @@ def DisplaySummary():
     wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-40)
     #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
-    kw = dict(arrowprops=dict(arrowstyle="-"),
-              bbox=bbox_props, zorder=0, va="center")
+    kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges):
         ang = (p.theta2 - p.theta1)/2. + p.theta1
         y = np.sin(np.deg2rad(ang))
@@ -137,6 +136,7 @@ def PlotCostvsVal():
     # collect the data
     hist_cost = CalcPortfolioHistoricalCost()
     hist_valuation = CalcPortfolioHistoricalValuation()
+    
     df = hist_valuation.merge(hist_cost, how='left', on='Date')
     df = df.fillna(method='ffill')
     
@@ -150,7 +150,7 @@ def PlotCostvsVal():
     
     # add subtitle with return %
     ar_etf = CalcIRR(platform='FSM HK')
-    subtitle = 'Performance since inception: %s' % '{0:.2%}'.format(ar_etf)
+    subtitle = 'Performance YTD: %s' % '{0:.2%}'.format(ar_etf)
     
     fig.suptitle(title, fontsize=12)
     ax.set(title=subtitle)
@@ -176,7 +176,7 @@ def PlotCostvsVal():
     x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
     ax.annotate('Transfer in; built up positions',
                 xy=('2020-09-01', y2.iloc[x2_pos]),
-                xytext=(-200, 10),
+                xytext=(-200, 20),
                 textcoords='offset points', color='gray',
                 arrowprops=dict(arrowstyle='-|>', color='gray')
                 )
@@ -185,7 +185,7 @@ def PlotCostvsVal():
     x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
     ax.annotate('Took profit from Airlines, reinvested in Tech',
                 xy=('2020-11-24', y2.iloc[x2_pos]),
-                xytext=(-250, 0),
+                xytext=(-275, 0),
                 textcoords='offset points', color='gray',
                 arrowprops=dict(arrowstyle='-|>', color='gray')
                 )

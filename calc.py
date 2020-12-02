@@ -436,11 +436,22 @@ def GetListOfETFs():
     return list_of_etfs
 
 
+# get the list of securities supported by Yahoo Finance
+def GetListOfSupportedInstruments():
+    sec = GetSecurities()
+    supported = sec[sec.YahooFinanceTicker.notnull()]
+    list_of_supported_instruments = list(supported.BBGCode.unique())
+    return list_of_supported_instruments
+    
+
+
 # get ETF transactions on FSM HK only
 def GetTransactionsETFs():
-    list_of_etfs = GetListOfETFs()
+    #list_of_etfs = GetListOfETFs()
+    list_of_supported_instruments = GetListOfSupportedInstruments()
     tn = GetAllTransactions()
-    tn_etf = tn[(tn.BBGCode.isin(list_of_etfs)) & (tn.Platform=='FSM HK')]
+    #tn_etf = tn[(tn.BBGCode.isin(list_of_supported_instruments)) & (tn.Platform=='FSM HK')]
+    tn_etf = tn[tn.BBGCode.isin(list_of_supported_instruments)]
     tn_etf_cost = tn_etf[tn_etf.Type.isin(['Buy','Sell'])]
     return tn_etf_cost
 
@@ -477,16 +488,19 @@ def _GetETFDataDateRanges(bbgcode):
 
 
 # get list of ETFs and date ranges, and query
-def GetHistoricalData():
-    list_of_etfs = GetListOfETFs()
+def GetHistoricalData(start_date=datetime.datetime(2019,12,31)):
+    #list_of_etfs = GetListOfETFs()
+    list_of_supported_instruments = GetListOfSupportedInstruments()
     # populate list of ETFs and date ranges
     df = pd.DataFrame(columns=['BBGCode','YFTicker','DateFrom','DateTo'])
-    for i in range(len(list_of_etfs)):
-        bbgcode = list_of_etfs[i]
+    for i in range(len(list_of_supported_instruments)):
+        bbgcode = list_of_supported_instruments[i]
         yf_ticker = GetYahooFinanceTicker(bbgcode)
         dates = _GetETFDataDateRanges(bbgcode)
         date_from = dates['DateFrom']
         date_to = dates['DateTo']
+        if date_from < start_date.date():
+            date_from = start_date.date()
         df = df.append({'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}, ignore_index=True)
 
     # loop through the list and collect the data from Yahoo
@@ -497,10 +511,17 @@ def GetHistoricalData():
         tmp = tmp.reset_index()
         tmp['BBGCode'] = row.BBGCode
         data = data.append(tmp, ignore_index=False)
-    data.to_csv('HistoricalPrices.csv', index=False)
-    return data
+    
+    # NEED TO DEAL WITH HK/US HOLIDAYS MISMATCH
+    tmp = data.pivot('Date','BBGCode', values='Close')
+    tmp = tmp.fillna(method='ffill')
+    tmp = tmp.reset_index()
+    tmp2 = pd.melt(tmp, id_vars=['Date'], value_vars=list(data.BBGCode.unique()), value_name='Close')
+    tmp2.dropna(inplace=True)
+    tmp2.to_csv('HistoricalPrices.csv', index=False)
+    return tmp2
 historical_data = GetHistoricalData()
-usdhkd = pdr.get_data_yahoo('HKD=X', start='2020-02-24', end=datetime.datetime.today())
+usdhkd = pdr.get_data_yahoo('HKD=X', start='2019-12-31', end=datetime.datetime.today())
 usdhkd = usdhkd[['Close']]
 usdhkd.columns = ['USDHKDrate']
 
@@ -510,13 +531,15 @@ def _USDHKDrate(date=None):
     if date is None:
         rate = usdhkd.iloc[-1].Close
     else:
-        rate = usdhkd[usdhkd.index==datetime.datetime(2020, 2, 25)].Close.iloc[0]
+        #rate = usdhkd[usdhkd.index==datetime.datetime(2020, 2, 25)].Close.iloc[0]
+        rate = usdhkd[usdhkd.index==datetime.datetime(2019,12,31)].Close.iloc[0]
     return rate
 
 # calculate the value of a security (returns time series) - this works for US ETFs only
 def _CalcValuation(bbgcode):
     #bbgcode='SPY US'
     #bbgcode='VWO US'
+    #bbgcode='SCHSEAI SP'
     hd = historical_data[historical_data.BBGCode==bbgcode]
     hd = hd[['Date','Close']]
     hd = hd.sort_values(['Date'], ascending=True)
@@ -526,8 +549,11 @@ def _CalcValuation(bbgcode):
     df = pd.merge(hd, tn, how='left', on='Date')
     df.NoOfUnits.fillna(0, inplace=True)
     df['Holdings'] = df.NoOfUnits.cumsum()
-    df['ValuationUSD'] = df.Holdings * df.Close
-    
+    # security currency
+    sec_ccy = GetSecurityCurrency(bbgcode)
+    ToUSD = GetFXRate('USD', sec_ccy)
+    df['Valuation'] = df.Holdings * df.Close
+    df['ValuationUSD'] = df.Valuation * ToUSD
     # get USDHKD rate
     df = df.merge(usdhkd, how='left', on='Date')
     df['USDHKDrate'] = df.USDHKDrate.fillna(method='ffill')
@@ -537,17 +563,21 @@ def _CalcValuation(bbgcode):
 
 # calculate the value of the entire portfolio (add up each security in the portfolio)
 def CalcPortfolioHistoricalValuation():
-    list_of_etfs = GetListOfETFs()
+    #list_of_etfs = GetListOfETFs()
+    list_of_supported_instruments = GetListOfSupportedInstruments()
     df = pd.DataFrame()
     
     # loop through the list
-    for i in range(len(list_of_etfs)):
-        bbgcode = list_of_etfs[i]
+    for i in range(len(list_of_supported_instruments)):
+        bbgcode = list_of_supported_instruments[i]
         tmp = _CalcValuation(bbgcode)
         # remove redundant rows
         tmp = tmp[~((tmp.NoOfUnits==0) & (tmp.Holdings==0))]
         tmp['BBGCode'] = bbgcode
         df = df.append(tmp, ignore_index=False)
+
+    # on each unique date, take the last row of unique security to avoid duplicated valuation
+    df = df.drop_duplicates(subset=['Date','BBGCode'], keep='last')
 
     # group the data by date
     agg = df.groupby(['Date']).agg({'ValuationHKD':'sum'})
@@ -556,8 +586,9 @@ def CalcPortfolioHistoricalValuation():
 
 
 # calculate the cost of the entire portfolio (add up each transaction in the portfolio)
-def CalcPortfolioHistoricalCost():
+def CalcPortfolioHistoricalCost(platform='FSM HK', start_date=datetime.datetime(2019,12,31)):
     tn_etf_cost = GetTransactionsETFs()
+    tn_etf_cost = tn_etf_cost[tn_etf_cost.Date > start_date]
     #tn_etf_cost['AccumCost'] = tn_etf_cost.CostInPlatformCcy.cumsum()
     agg = tn_etf_cost.groupby(['Date']).agg({'CostInPlatformCcy':'sum'})
     agg = agg.reset_index()
@@ -567,7 +598,7 @@ def CalcPortfolioHistoricalCost():
 
 
 # return the valuation 
-hist_valuation = CalcPortfolioHistoricalValuation()     # this is for US ETFs only
+hist_valuation = CalcPortfolioHistoricalValuation()
 
 # function to return start dates for YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday
 def GetStartDate(period):
@@ -650,17 +681,20 @@ def _xirr(values, dates):
 #           305547.88]
 
 
-def CalcIRR(platform='FSM HK', bbgcode=None, period=None):
+def CalcIRR(platform=None, bbgcode=None, period=None):
     #platform = 'FSM HK'
     #bbgcode = 'SPY US'
     #period = None
+    #platform,bbgcode,period=None,None,None
     df = GetAllTransactions()
-    list_of_etfs = GetListOfETFs()
-            
+    #list_of_etfs = GetListOfETFs()
+    list_of_supported_securities = GetListOfSupportedInstruments()
+
     # filter the data based on selection criteria (bbgcode, platform)
     df.drop(['_id'], axis=1, inplace=True)
-    df = df[df.BBGCode.isin(list_of_etfs)]
-    df = df[df.Platform==platform]
+    df = df[df.BBGCode.isin(list_of_supported_securities)]
+    if platform is not None:
+        df = df[df.Platform==platform]
     if bbgcode is not None:
         df = df[df.BBGCode==bbgcode]
 
@@ -685,14 +719,24 @@ def CalcIRR(platform='FSM HK', bbgcode=None, period=None):
         df.loc[df.Type=='Buy', 'Cashflow'] = df.loc[df.Type=='Buy', 'CostInPlatformCcy'] * -1
         df.loc[df.Type=='Sell', 'Cashflow'] = df.loc[df.Type=='Sell', 'CostInPlatformCcy'] * -1
         df.loc[df.Type=='Dividend', 'Cashflow'] = df.loc[df.Type=='Dividend', 'RealisedPnL']
-        df = df[['Date','Cashflow']]
+        
+        # get platform and currency
+        platforms = list(df.Platform.unique())
+        currencies = [GetPlatformCurrency(x) for x in platforms]
+        platform_ccy = {platforms[x]: currencies[x] for x in range(len(platforms))}
+        df['PlatformCcy'] = df.Platform.map(platform_ccy)
+        df = df[['Date','PlatformCcy','Cashflow']]
+        # calculate HKD equivalent
+        SGDHKD = GetFXRate('HKD','SGD')
+        ToHKD = {'HKD':1, 'SGD':SGDHKD}
+        df['CashflowInHKD'] = df.PlatformCcy.map(ToHKD) * df.Cashflow
     
         # get valuations (beginning, ending)
         if bbgcode is None:
             val = CalcPortfolioHistoricalValuation()
             val.rename(columns={'ValuationHKD':'Cashflow'}, inplace=True)
         else:
-            val = _CalcValuation(bbgcode) # bug: if bbgcode is NOne....??????
+            val = _CalcValuation(bbgcode) # bug: if bbgcode is None....??????
             val.rename(columns={'ValuationHKD':'Cashflow'}, inplace=True)
             val = val[['Date','Cashflow']]
         # latest valuation up to start date
