@@ -48,11 +48,19 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Get historical NAV
 * Get historical FX rates
 
-**calc.py**
+**calc_fx.py**
 * FX conversions
-* Latest NAV
+
+**calc_val.py**
+* Latest NAV processing (both Yahoo Finance API and manual input of unsupported mutual funds)
+
+**calc_summary.py**
 * Portfolio summary
+* Portfolio summary including uninvested cash
+* Top holdings
 * Realised and unrealised PnL
+
+**calc_returns.py**
 * TWRR (time-weighted rate of return): suitable measurement for a fund manager (emphasizes on overall trading decisions)
 * MWRR (money-weighted rate of return): suitable measurement for an individual investor (emphasizes on timing of in/out flows)
 * Yahoo Finance API (historical prices, FX rates)
