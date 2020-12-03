@@ -59,8 +59,8 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Realised and unrealised PnL
 
 **calc_returns.py**
-* TWRR (time-weighted rate of return): suitable measurement for a fund manager (emphasizes on overall trading decisions)
-* MWRR (money-weighted rate of return): suitable measurement for an individual investor (emphasizes on timing of in/out flows)
+* Modified Dietz Return (time-weighted rate of return): suitable measurement for a fund manager (emphasizes on overall trading decisions)
+* Internal Rate of Return (money-weighted rate of return): suitable measurement for an individual investor (emphasizes on timing of in/out flows)
 * Yahoo Finance API (historical prices, FX rates)
 * Historical cost vs valuation
 
