@@ -55,9 +55,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Latest NAV processing (both Yahoo Finance API and manual input of unsupported mutual funds)
 
 **calc_summary.py**
-* Portfolio summary
-* Portfolio summary including uninvested cash
-* Top holdings
+* Portfolio summary, inc. uninvested cash
 * Realised and unrealised PnL
 
 **calc_returns.py**
