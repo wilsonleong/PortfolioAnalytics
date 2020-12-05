@@ -11,10 +11,13 @@ This module does the following:
 
 """
 
+import datetime
+
+###
+
 import setup
 import pandas as pd
 import numpy as np
-import datetime
 import dateutil.relativedelta
 import calc_summary
 import calc_fx
@@ -23,56 +26,91 @@ import calc_fx
 import yfinance as yf
 yf.pdr_override()
 from pandas_datareader import data as pdr
-#data = pdr.get_data_yahoo('VWO', start='2020-02-24', end=datetime.datetime.today())
 #data = pdr.get_data_yahoo('HKD=X', start='2020-02-24', end=datetime.datetime.today())
 
 
 # function to return start dates for YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday
-def GetStartDate(period):
+def GetStartDate(period=None):
     #period='1m'
-    period = period.upper()
+    if period is None:
+        tn = setup.GetAllTransactions()
+        supported_instruments = setup.GetListOfSupportedInstruments()
+        tn = tn[tn.BBGCode.isin(supported_instruments)]
+        start_date = tn.Date.min()    # since inception
+    else:
+        period = period.upper()
     # supported periods: YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday (up to start of today)
-    today = datetime.datetime.today().date()
-    if period=='YTD':
-        start_date = datetime.datetime(today.year, 1, 1)
-    elif period=='1W':
-        start_date = today + datetime.timedelta(days=-7)
-    elif period=='1M':
-        start_date = today + dateutil.relativedelta.relativedelta(months=-1)
-    elif period=='3M':
-        start_date = today + dateutil.relativedelta.relativedelta(months=-3)
-    elif period=='6M':
-        start_date = today + dateutil.relativedelta.relativedelta(months=-6)
-    elif period=='1Y' or period=='12M':
-        start_date = today + dateutil.relativedelta.relativedelta(years=-1)
-    elif period=='3Y':
-        start_date = today + dateutil.relativedelta.relativedelta(years=-3)
-    elif period=='5Y':
-        start_date = today + dateutil.relativedelta.relativedelta(years=-5)
-    elif period=='10Y':
-        start_date = today + dateutil.relativedelta.relativedelta(years=-10)
+        today = datetime.datetime.today().date()
+        if period=='YTD':
+            start_date = datetime.datetime(today.year, 1, 1)
+        elif period=='1W':
+            start_date = today + datetime.timedelta(days=-7)
+        elif period=='1M':
+            start_date = today + dateutil.relativedelta.relativedelta(months=-1)
+        elif period=='3M':
+            start_date = today + dateutil.relativedelta.relativedelta(months=-3)
+        elif period=='6M':
+            start_date = today + dateutil.relativedelta.relativedelta(months=-6)
+        elif period=='1Y' or period=='12M':
+            start_date = today + dateutil.relativedelta.relativedelta(years=-1)
+        elif period=='3Y':
+            start_date = today + dateutil.relativedelta.relativedelta(years=-3)
+        elif period=='5Y':
+            start_date = today + dateutil.relativedelta.relativedelta(years=-5)
+        elif period=='10Y':
+            start_date = today + dateutil.relativedelta.relativedelta(years=-10)
     return start_date
+
+
+# function to get the balance brought forward (of supported instruments)
+# returns list of holdings, cost and valuation in HKD at the given start date
+def _GetExistingHoldings(start_date, bbgcode=None, base_ccy='HKD'):
+    tn = setup.GetAllTransactions()
+    tn = tn[tn.Date<start_date]
+    # only include the supported instruments
+    support_instruments = setup.GetListOfSupportedInstruments()
+    tn = tn[tn.BBGCode.isin(support_instruments)]
+    holdings = tn.groupby(['Platform','BBGCode']).agg({'NoOfUnits':'sum','CostInPlatformCcy':'sum'})
+    holdings = holdings[holdings.NoOfUnits!=0]
+    holdings = holdings.reset_index()
+    # calculate the cost and valuation in base ccy equivalent (cost in platform ccy, val in sec ccy)
+    val = historical_data.copy()
+    val = val[val.Date<start_date]
+
+    for i in range(len(holdings)):
+        row = holdings.iloc[i]
+        holdings.loc[i,'PlatformCcy'] = setup.GetPlatformCurrency(row.Platform)
+        holdings.loc[i,'SecurityCcy'] = setup.GetSecurityCurrency(row.BBGCode)
+        
+        # add valuation here
+        v = val[val.BBGCode==row.BBGCode]
+        if len(v)==0:
+            print ('WARNING: no market data - check feed/date range')
+        holdings.loc[i,'Close'] = v.iloc[-1].Close
+        holdings.loc[i,'ValuationInSecCcy'] = holdings.loc[i,'Close'] * row.NoOfUnits
+        
+        # calc base ccy equivalent
+        # optimise FX query (if platform ccy = security ccy then use same fx rate)
+        same_ccy = holdings.loc[i,'PlatformCcy']==holdings.loc[i,'SecurityCcy']
+        if same_ccy:
+            fxrate = calc_fx.ConvertFX(holdings.loc[i,'SecurityCcy'],base_ccy)
+            holdings.loc[i,'CostInBaseCcy'] = fxrate * row.CostInPlatformCcy
+            holdings.loc[i,'ValuationInBaseCcy'] = fxrate * holdings.loc[i,'ValuationInSecCcy']
+        else:
+            holdings.loc[i,'CostInBaseCcy'] = calc_fx.ConvertTo(base_ccy, holdings.loc[i,'PlatformCcy'], row.CostInPlatformCcy)
+            holdings.loc[i,'ValuationInBaseCcy'] = calc_fx.ConvertTo(base_ccy, holdings.loc[i,'SecurityCcy'], holdings.loc[i,'ValuationInSecCcy'])
+
+    return holdings
 
 
 # function to return valuation and cash flows as of particular date
 def _GetValuation(start_date):
-    #start_date=datetime.datetime(2020,3,3)
-    #hist_valuation = CalcPortfolioHistoricalValuation()
     row = hist_valuation[hist_valuation.Date<=start_date]
     if len(row)==0:
         val = 0
     else:
         val = row.ValuationHKD.iloc[-1]
     return val
-
-
-# get the cashflows from a certain date
-def _GetCashFlows(start_date):
-    #start_date=datetime.datetime(2020,9,1)
-    tn = GetTransactionsETFs()
-    tn.drop(['_id'], axis=1, inplace=True)
-    cashflows = tn[tn.Date>=start_date]
-    return cashflows
 
 
 # determine which date ranges to collect historical data for
@@ -96,7 +134,13 @@ def _GetETFDataDateRanges(bbgcode):
 
 
 # get list of ETFs and date ranges, and query
-def GetHistoricalData(start_date=datetime.datetime(2019,12,31)):
+def GetHistoricalData(start_date=None):
+    if start_date is None:
+        tn = setup.GetAllTransactions()
+        supported_instruments = setup.GetListOfSupportedInstruments()
+        tn = tn[tn.BBGCode.isin(supported_instruments)]
+        start_date = tn.Date.min()
+    
     #list_of_etfs = GetListOfETFs()
     list_of_supported_instruments = setup.GetListOfSupportedInstruments()
     # populate list of ETFs and date ranges
@@ -132,20 +176,54 @@ def GetHistoricalData(start_date=datetime.datetime(2019,12,31)):
 
 historical_data = GetHistoricalData()
 # get USDHKD rate
-usdhkd = pdr.get_data_yahoo('HKD=X', start='2019-12-31', end=datetime.datetime.today())
+usdhkd = pdr.get_data_yahoo('HKD=X', start='2015-07-01', end=datetime.datetime.today())
 usdhkd = usdhkd[['Close']]
 usdhkd.columns = ['USDHKDrate']
+
+
 # calculate the value of a security (returns time series) - this works for US ETFs only
-def _CalcValuation(bbgcode):
+def _CalcValuation(bbgcode, start_date=None):
+    # assumes bbgcode can only be on 1 platform (exception VWO XLE)
     #bbgcode='SPY US'
     #bbgcode='SCHSEAI SP'
-    hd = historical_data[historical_data.BBGCode==bbgcode]
+    if start_date is None:
+        tn = setup.GetAllTransactions()
+        supported_instruments = setup.GetListOfSupportedInstruments()
+        tn = tn[tn.BBGCode.isin(supported_instruments)]
+        
+        if bbgcode is not None:
+            tn = tn[tn.BBGCode==bbgcode]
+        start_date = tn.Date.min()
+    
+    hd = historical_data[historical_data.BBGCode==bbgcode]      # need to add a start date in the function
+    if bbgcode is None:
+        hd = historical_data.copy()
     hd = hd[['Date','Close']]
+    hd_prev = hd[hd.Date<start_date].copy()
+    hd_prev = hd_prev.tail(1)
+    
+    # filter by selected date range
+    hd = hd[hd.Date>=start_date]
+    # add back last valuation before beginning of date range
+    hd = hd.append(hd_prev)
+    
     hd = hd.sort_values(['Date'], ascending=True)
+    
     tn = setup.GetTransactionsETFs()
     tn = tn[tn.BBGCode==bbgcode]
+    
     tn = tn[['Date','NoOfUnits']]
+    tn = tn[tn.Date>=start_date]
+    
+    # CAREFUL: if the transaction date is a holiday where there is no market data, the holdings will be missed
+    
+    # add balance brought forward
+    bf = _GetExistingHoldings(start_date)
+    bf = bf[bf.BBGCode==bbgcode]
     df = pd.merge(hd, tn, how='left', on='Date')
+    # if there is balance b/f, then add it
+    if len(bf)>0:
+        df.loc[0,'NoOfUnits'] = bf.iloc[0].NoOfUnits
     df.NoOfUnits.fillna(0, inplace=True)
     df['Holdings'] = df.NoOfUnits.cumsum()
     # security currency
@@ -160,21 +238,39 @@ def _CalcValuation(bbgcode):
 
 
 # calculate the value of the entire portfolio (add up each security in the portfolio)
-def CalcPortfolioHistoricalValuation():
-    #list_of_etfs = GetListOfETFs()
-    list_of_supported_instruments = setup.GetListOfSupportedInstruments()
-    df = pd.DataFrame()
+def CalcPortfolioHistoricalValuation(platform=None, bbgcode=None, start_date=None):
+    # only applies to instruments supported by Yahoo Finance
+    supported_instruments = setup.GetListOfSupportedInstruments()
+    tn = setup.GetAllTransactions()
+    tn_in_scope = tn[tn.BBGCode.isin(supported_instruments)]
+    instruments_in_scope = supported_instruments
     
+    # if platform is specified, check which instruments were actually on the platform
+    if platform is not None:
+        tn_in_scope = tn_in_scope[tn_in_scope.Platform==platform]
+        instruments_in_scope = list(tn_in_scope.BBGCode.unique())
+    
+    # if bbgcode is specified, then restrict to just the instrument
+    if bbgcode is not None:
+        if bbgcode in instruments_in_scope:
+            instruments_in_scope = [bbgcode]
+    
+    # if start date is not defined, start from earliest transaction in scope
+    if start_date is None:
+        start_date = tn_in_scope.Date.min()
+
+    df = pd.DataFrame()
     # loop through the list
-    for i in range(len(list_of_supported_instruments)):
-        bbgcode = list_of_supported_instruments[i]
-        tmp = _CalcValuation(bbgcode)
+    for i in range(len(instruments_in_scope)):
+        bbgcode = instruments_in_scope[i]
+        tmp = _CalcValuation(bbgcode, start_date)
         # remove redundant rows
         tmp = tmp[~((tmp.NoOfUnits==0) & (tmp.Holdings==0))]
         tmp['BBGCode'] = bbgcode
         df = df.append(tmp, ignore_index=False)
 
     # on each unique date, take the last row of unique security to avoid duplicated valuation
+    df.sort_values(['Date','BBGCode'], inplace=True)
     df = df.drop_duplicates(subset=['Date','BBGCode'], keep='last')
 
     # group the data by date
@@ -282,14 +378,58 @@ def CalcModDietzReturn(platform, bbgcode=None, period=None):
 
 
 # calculate the cost of the entire portfolio (add up each transaction in the portfolio)
-def CalcPortfolioHistoricalCost(platform='FSM HK', start_date=datetime.datetime(2019,12,31)):
-    tn_etf_cost = setup.GetTransactionsETFs()
-    tn_etf_cost = tn_etf_cost[tn_etf_cost.Date > start_date]
-    #tn_etf_cost['AccumCost'] = tn_etf_cost.CostInPlatformCcy.cumsum()
-    agg = tn_etf_cost.groupby(['Date']).agg({'CostInPlatformCcy':'sum'})
+def CalcPortfolioHistoricalCost(platform=None, start_date=None, base_ccy='HKD'):
+    if start_date is None:
+        tn = setup.GetAllTransactions()
+        supported_instruments = setup.GetListOfSupportedInstruments()
+        tn = tn[tn.BBGCode.isin(supported_instruments)]
+        start_date = tn.Date.min()
+    
+    #platform='FSM HK'
+    tn_cost = setup.GetTransactionsETFs()
+    tn_cost = tn_cost[tn_cost.Date > start_date]
+    
+    # need to add balance brought forward
+    bf = _GetExistingHoldings(start_date)
+
+    if platform is not None:
+        tn_cost = tn_cost[tn_cost.Platform==platform]
+        bf = bf[bf.Platform==platform]
+    
+    for i in range(len(bf)):
+        row = bf.iloc[i]
+        dic = {'Platform':row.Platform,
+               'Date':start_date,
+               'Type':'Buy',
+               'BBGCode':row.BBGCode,
+               'CostInPlatformCcy':row.CostInPlatformCcy,
+               'NoOfUnits':row.NoOfUnits
+               }
+        tn_cost = tn_cost.append(dic, ignore_index=True)
+    tn_cost.sort_values(['Date','BBGCode'], inplace=True)
+
+    # convert all values into HKD before aggregating (need to convert platform ccy to HKD)
+    platforms = list(tn_cost.Platform.unique())
+    platform_ccys = [setup.GetPlatformCurrency(x) for x in platforms]
+    platform_ccy_mapping = {platforms[i]: platform_ccys[i] for i in range(len(platforms))}
+    tn_cost['PlatformCcy'] = tn_cost.Platform.map(platform_ccy_mapping)
+    ccys = tn_cost.PlatformCcy.unique()
+    fx_rate = []
+    for i in range(len(ccys)):
+        ccy = ccys[i]
+        if ccy==base_ccy:
+            rate = 1
+        else:
+            rate = calc_fx.ConvertFX(ccy,base_ccy)
+        fx_rate.append(rate)
+    ToBaseCcyRate = {ccys[i]:fx_rate[i] for i in range(len(ccys))}
+    tn_cost['ToHKDrate'] = tn_cost.PlatformCcy.map(ToBaseCcyRate)
+    tn_cost['CostInBaseCcy'] = tn_cost.ToHKDrate * tn_cost.CostInPlatformCcy
+    
+    agg = tn_cost.groupby(['Date']).agg({'CostInBaseCcy':'sum'})
     agg = agg.reset_index()
-    agg['AccumCostHKD'] = agg.CostInPlatformCcy.cumsum()
-    agg.drop(['CostInPlatformCcy'], axis=1, inplace=True)
+    agg['AccumCostHKD'] = agg.CostInBaseCcy.cumsum()
+    agg.drop(['CostInBaseCcy'], axis=1, inplace=True)
     return agg
 
 
@@ -330,11 +470,13 @@ def _xirr(values, dates):
 
 
 # calculate the IRR
-# WORK IN PROGRESS: NEED TO TAKE INTO ACCOUNT BALANCE BROUGHT FORWARD!!!
 def CalcIRR(platform=None, bbgcode=None, period=None):
-    #platform = 'FSM HK'
-    #bbgcode = 'SPY US'
-    #period = None
+    #platform = 'FSM SG'
+    #bbgcode = 'ARKK US'
+    #period = None      #since inception
+    #period = 'YTD'
+    #period = '1Y'
+    #period = '3M'
     #platform,bbgcode,period=None,None,None
     df = setup.GetAllTransactions()
     list_of_supported_securities = setup.GetListOfSupportedInstruments()
@@ -347,102 +489,115 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
     if bbgcode is not None:
         df = df[df.BBGCode==bbgcode]
 
-
-
-
-
-
-    # start date as 1 Jan 2020 (HARDCODED)
-    start_date = datetime.datetime(2020,1,1)
-    df = df[df.Date>start_date]
-    # need to add balance brought forward
-    # add cost of existing holding
-    # add valuation of existing holdings even if no trading in the year
-
-
-
-
-
-
-
-
-
-
-
-
-    # filter on date range for the transactions / cashflows
-    if period is not None:
-        start_date = GetStartDate(period)
-        # check if the date range covers any data
-        hasPrevData = False
-        if len(df[df.Date <= np.datetime64(start_date)]) > 1:
-            hasPrevData = True
+    # get the start date for cashflows (the sum of anything before needs to be added as a single cashflow)
+    date_range_start = GetStartDate(period)
     
-    perform_calc = True
-    if period is not None:
-        if hasPrevData:
-            df = df[df.Date >= np.datetime64(start_date)].copy()
-        else:
+    # apply the start date from applicable transactions
+    earliest_transaction_date = df.Date.min()
+    date_range_start_dt = earliest_transaction_date
+    
+    PerformCalc = True
+    # determine if there is previous data (i.e. whether to add cost brought forward as cashflow)
+    if period is None:
+        # if period is not defined (i.e. since inception), take the earliest transaction date
+        hasPrevData = False
+        date_range_start_dt = earliest_transaction_date
+    else:
+        # if period is defined (e.g. 3Y), check whether there are transactions before 3Y
+        hasPrevData = (len(df[df.Date<date_range_start_dt]) > 0)
+        date_range_start_dt = datetime.datetime.combine(date_range_start, datetime.datetime.min.time())
+        df = df[df.Date >= date_range_start_dt]
+        if earliest_transaction_date > date_range_start:
+            # if the first transaction is after the beginning of specified period, no need to calc IRR
             irr = np.nan
-            perform_calc = False
+            PerformCalc = False
+            dic = {'StartDate':date_range_start_dt,
+                   'InitialCashflow':None,
+                   'FinalCashflow':None,
+                   'IRR':irr}
 
-    if perform_calc:
-        # calculation cashflow direction for XIRR computation
-        df.loc[df.Type=='Buy', 'Cashflow'] = df.loc[df.Type=='Buy', 'CostInPlatformCcy'] * -1
-        df.loc[df.Type=='Sell', 'Cashflow'] = df.loc[df.Type=='Sell', 'CostInPlatformCcy'] * -1
-        df.loc[df.Type=='Dividend', 'Cashflow'] = df.loc[df.Type=='Dividend', 'RealisedPnL']
+    if PerformCalc:
+        # process cashflows
+        cf = df[df.Date >= date_range_start_dt].copy()
+        cf.loc[cf.Type=='Buy', 'Cashflow'] = cf.loc[cf.Type=='Buy', 'CostInPlatformCcy'] * -1
+        cf.loc[cf.Type=='Sell', 'Cashflow'] = cf.loc[cf.Type=='Sell', 'CostInPlatformCcy'] * -1
+        cf.loc[cf.Type=='Dividend', 'Cashflow'] = cf.loc[cf.Type=='Dividend', 'RealisedPnL']
         
         # get platform and currency
-        platforms = list(df.Platform.unique())
+        platforms = list(cf.Platform.unique())
         currencies = [setup.GetPlatformCurrency(x) for x in platforms]
         platform_ccy = {platforms[x]: currencies[x] for x in range(len(platforms))}
-        df['PlatformCcy'] = df.Platform.map(platform_ccy)
-        df = df[['Date','PlatformCcy','Cashflow']]
+        cf['PlatformCcy'] = cf.Platform.map(platform_ccy)
+        cf = cf[['Date','PlatformCcy','Cashflow']]
         # calculate HKD equivalent
         SGDHKD = calc_fx.GetFXRate('HKD','SGD')
         ToHKD = {'HKD':1, 'SGD':SGDHKD}
-        df['CashflowInHKD'] = df.PlatformCcy.map(ToHKD) * df.Cashflow
+        cf['CashflowInHKD'] = cf.PlatformCcy.map(ToHKD) * cf.Cashflow
     
+        # need to add initial and final cashflows (valuation at beginning, valuation at end)
         # get valuations (beginning, ending)
         if bbgcode is None:
-            val = CalcPortfolioHistoricalValuation()
+            val = CalcPortfolioHistoricalValuation(platform=platform, bbgcode=bbgcode, start_date=date_range_start_dt)
             val.rename(columns={'ValuationHKD':'Cashflow'}, inplace=True)
         else:
-            val = _CalcValuation(bbgcode) # bug: if bbgcode is None....??????
+            val = _CalcValuation(bbgcode=bbgcode, start_date=date_range_start_dt)
             val.rename(columns={'ValuationHKD':'Cashflow'}, inplace=True)
             val = val[['Date','Cashflow']]
-        # latest valuation up to start date
+    
+        # valuation as of start date
         if period is not None:
-            val_start = (val[(val.Date<=np.datetime64(start_date)) & (val.index==val[val.Date<=np.datetime64(start_date)].index.max())]).copy()
+            val_start = (val[(val.Date<=np.datetime64(date_range_start_dt)) & (val.index==val[val.Date<=np.datetime64(date_range_start_dt)].index.max())]).copy()
             val_start.loc[:,'Cashflow'] = val_start.loc[:,'Cashflow'] * -1
-            # add beginning valuation as first cashflow (only if there are transactions in the period)
-            #if len(df) > 0:
-            if hasPrevData:
-                df = df.append(val_start)
+            val_start.rename(columns={'Cashflow':'CashflowInHKD'}, inplace=True)
+            cf = cf.append(val_start)
+        else:
+            val_start = pd.DataFrame(data={'Date':date_range_start_dt,'CashflowInHKD':0},
+                                     columns=['Date','CashflowInHKD'],
+                                     index=[0])
         
         # latest valuation
-        val_end = val[val.index==val.index.max()]
-            
-        # add latest valuation as final cashflow (only if there are still holdings)
-        #if (df.Date.iloc[-1] != val.Date.iloc[0]) and val.Cashflow.iloc[0]!=0:
-        if val.Cashflow.iloc[0]!=0:
-            df = df.append(val_end)
+        val_end = val[val.index==val.index.max()].copy()
+        val_end.rename(columns={'Cashflow':'CashflowInHKD'}, inplace=True)
     
-        df = df.sort_values(['Date'])
-        df = df.reset_index(drop=True)
+        # add latest valuation as final cashflow (only if there are still holdings)
+        #if (cf.Date.iloc[-1] != val.Date.iloc[0]) and val.Cashflow.iloc[0]!=0:
+        if val.Cashflow.iloc[-1]!=0:
+            cf = cf.append(val_end, ignore_index=True)
+    
+        cf = cf.sort_values(['Date'])
+        cf = cf.reset_index(drop=True)
     
         # annualised return
-        annualised_irr = _xirr(values=df.Cashflow.to_list(), dates=df.Date.to_list())
+        annualised_irr = _xirr(values=cf.CashflowInHKD.to_list(), dates=cf.Date.to_list())
         
-        # convert back to period
-        no_of_days = (pd.to_datetime(df.iloc[-1].Date) - pd.to_datetime(df.iloc[0].Date)).days
-        irr = (1+annualised_irr)**(no_of_days/365)-1
+        # convert back to period if period is < a year
+        no_of_days = (pd.to_datetime(cf.iloc[-1].Date) - pd.to_datetime(cf.iloc[0].Date)).days
+        if no_of_days < 365:
+            irr = (1+annualised_irr)**(no_of_days/365)-1
+        else:
+            irr = annualised_irr
     
-    return irr
+        # return the calc results
+        dic = {'StartDate':date_range_start_dt,
+               'InitialCashflow':val_start.CashflowInHKD.iloc[0],
+               'FinalCashflow':val_end.CashflowInHKD.iloc[0],
+               'IRR':irr}
+    
+    return dic
 #CalcIRR('FSM HK')
+#CalcIRR('FSM SG', bbgcode='SCHSEAI SP')
+#CalcIRR('FSM SG')
 #CalcIRR('FSM HK', period='1w')
 #CalcIRR('FSM HK', period='1m')
 #CalcIRR('FSM HK', period='3m')
 #CalcIRR('FSM HK', period='6m')
 #CalcIRR('FSM HK', period='1y')
 #CalcIRR('FSM HK', period='ytd')
+
+#CalcIRR()
+#CalcIRR(period='1W')
+#CalcIRR(period='1M')
+# print (CalcIRR(period='3M'))
+# print (CalcIRR(period='6M'))
+# print (CalcIRR(period='1Y'))
+# print (CalcIRR(period='3Y'))

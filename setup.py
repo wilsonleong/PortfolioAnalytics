@@ -193,7 +193,6 @@ def UpdateLatestFXrates():
     print ('\nCollecting latest FX rates from Yahoo Finance...')
     df = pd.read_excel(_FXfile, sheet_name='Sheet1')
 
-    # TO BE COMPLETED: for each currency pair, get latest rate
     # loop through each ticker, get price
     for i in range(len(df)):
         row = df.iloc[i]
@@ -301,3 +300,26 @@ def GetYahooFinanceTicker(bbgcode):
     df = sec[sec.BBGCode==bbgcode]
     ticker = df.YahooFinanceTicker.iloc[0]
     return ticker
+
+
+# get the list of securities supported by Yahoo Finance (regardless of whether there are current holdings)
+def GetListOfSupportedInstruments():
+    sec = GetSecurities()
+    supported = sec[sec.YahooFinanceTicker.notnull()]
+    list_of_supported_instruments = list(supported.BBGCode.unique())
+    return list_of_supported_instruments
+
+
+# get transactions of supported instruments (previously applicable to ETFs on FSM HK only)
+def GetTransactionsETFs():
+    list_of_supported_instruments = GetListOfSupportedInstruments()
+    tn = GetAllTransactions()
+    tn_etf = tn[tn.BBGCode.isin(list_of_supported_instruments)]
+    tn_etf_cost = tn_etf[tn_etf.Type.isin(['Buy','Sell'])]
+    return tn_etf_cost
+
+
+# get bank and cash balances
+def GetBankAndCashBalances():
+    df = pd.read_excel(_setupfile, sheet_name='Cash')
+    return df

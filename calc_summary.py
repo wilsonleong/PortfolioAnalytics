@@ -122,7 +122,7 @@ def GetHistoricalRealisedPnL():
 
     hist = tn[tn.RealisedPnL.notnull()]
     pnl = hist.groupby(['Platform','Name','Type','PlatformCurrency']).RealisedPnL.sum()
-    return pnl
+    return hist, pnl
 
 
 def _GetSecurityCategory(name):
@@ -173,7 +173,7 @@ def GetPortfolioSummaryIncCash():
         dic = {'Platform':'Cash',
                'Name':row.AccountName,
                'CurrentValue':row.Balance,
-               'SecurityType':'Cash (multi-ccy)',
+               'SecurityType':'FX & cash',
                'SecurityCcy':row.Currency,
                'CurrentValueInHKD':current_value_in_HKD,
                'Category':row.Category
