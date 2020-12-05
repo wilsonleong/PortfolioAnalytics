@@ -47,6 +47,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Yahoo Finance API
 * Get historical NAV
 * Get historical FX rates
+* Historical NAV processing, cache on MongoDB
 
 **calc_fx.py**
 * FX conversions
