@@ -13,6 +13,10 @@ LastNavFilePath = r'D:\Wilson\Documents\Personal Documents\Investments\Portfolio
 
 import pandas as pd
 import yfinance as yf
+yf.pdr_override()
+from pandas_datareader import data as pdr
+import setup
+
 
 # gets the latest price & updated timestamp for a ticker (stock, ETF, currency pair, etc.)
 def GetLatestPrice(ticker, display_log=False):
@@ -69,3 +73,61 @@ def UpdateLastNAV():
     df2.to_excel(LastNavFilePath, index=False)
 
 
+def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
+    tn = setup.GetAllTransactions()
+    # filter by bbgcode and platform
+    if bbgcode is not None:
+        tn = tn[tn.BBGCode==bbgcode]
+    if platform is not None:
+        tn = tn[tn.Platform==platform]
+    
+    if start_date is None:
+        supported_instruments = setup.GetListOfSupportedInstruments()
+        tn = tn[tn.BBGCode.isin(supported_instruments)]
+        start_date = tn.Date.min()
+    
+    #list_of_etfs = GetListOfETFs()
+    list_of_supported_instruments = setup.GetListOfSupportedInstruments()
+    
+    if bbgcode is not None:
+        list_of_supported_instruments = [bbgcode]
+    
+    # populate list of ETFs and date ranges
+    df = pd.DataFrame(columns=['BBGCode','YFTicker','DateFrom','DateTo'])
+    for i in range(len(list_of_supported_instruments)):
+        bbgcode = list_of_supported_instruments[i]
+        yf_ticker = setup.GetYahooFinanceTicker(bbgcode)
+        dates = setup.GetETFDataDateRanges(bbgcode)
+        date_from = dates['DateFrom']
+        date_to = dates['DateTo']
+        if date_from < start_date.date():
+            date_from = start_date.date()
+        df = df.append({'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}, ignore_index=True)
+
+    # loop through the list and collect the data from Yahoo
+    data = pd.DataFrame()
+    for i in range(len(df)):
+        row = df.iloc[i]
+        tmp = pdr.get_data_yahoo(row.YFTicker, start=row.DateFrom, end=row.DateTo)
+        tmp = tmp.reset_index()
+        tmp['BBGCode'] = row.BBGCode
+        data = data.append(tmp, ignore_index=False)
+    
+    # NEED TO DEAL WITH HK/US HOLIDAYS MISMATCH
+    tmp = data.pivot('Date','BBGCode', values='Close')
+    tmp = tmp.fillna(method='ffill')
+    tmp = tmp.reset_index()
+    tmp2 = pd.melt(tmp, id_vars=['Date'], value_vars=list(data.BBGCode.unique()), value_name='Close')
+    tmp2.dropna(inplace=True)
+    #tmp2.to_csv('HistoricalPrices.csv', index=False)
+    
+    # save to mongodbo
+    db = setup.ConnectToMongoDB()
+    
+    coll = db['HistoricalMarketData']
+    # clear all previous transactions
+    coll.delete_many({})
+
+    # insert rows into the db
+    coll.insert_many(tmp2.to_dict('records'))
+    return tmp2

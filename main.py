@@ -50,10 +50,17 @@ def main():
     setup.InitialSetup()  # initial setup and other hardcoded transactions (exc import from FSM SG)
     #setup.InsertHistTransactions()
     
+    # process historical market data
+    #mdata.ProcessHistoricalMarketData()
+    
     # display visualisation
     viz.DisplaySummary()
-    viz.PlotCostvsVal()
+    viz.DisplayReturnPct()
+    viz.PlotPortfolioComposition()
+    viz.PlotCostvsVal(period='6M', platform='FSM HK')
+    #viz.PlotCostvsVal(period='6M', platform='FSM SG') # BUGGED - valuation still including XLE VWO in HK acc
     viz.PlotTopHoldings()
+    viz.PlotCurrecnyExposureAssetAllocation()
     viz.PlotRealisedPnLOverTime(period='1Y')
 
 

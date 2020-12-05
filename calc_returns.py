@@ -26,7 +26,6 @@ import calc_fx
 import yfinance as yf
 yf.pdr_override()
 from pandas_datareader import data as pdr
-#data = pdr.get_data_yahoo('HKD=X', start='2020-02-24', end=datetime.datetime.today())
 
 
 # function to return start dates for YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday
@@ -64,9 +63,11 @@ def GetStartDate(period=None):
 
 # function to get the balance brought forward (of supported instruments)
 # returns list of holdings, cost and valuation in HKD at the given start date
-def _GetExistingHoldings(start_date, bbgcode=None, base_ccy='HKD'):
+def _GetExistingHoldings(start_date, bbgcode=None, platform=None, base_ccy='HKD'):
     tn = setup.GetAllTransactions()
     tn = tn[tn.Date<start_date]
+    if platform is not None:
+        tn = tn[tn.Platform==platform]
     # only include the supported instruments
     support_instruments = setup.GetListOfSupportedInstruments()
     tn = tn[tn.BBGCode.isin(support_instruments)]
@@ -113,65 +114,13 @@ def _GetValuation(start_date):
     return val
 
 
-# determine which date ranges to collect historical data for
-def _GetETFDataDateRanges(bbgcode):
-    #bbgcode='SPY US'
-    tn = setup.GetTransactionsETFs()
-    tn = tn[tn.BBGCode==bbgcode]
-    
-    # check if security is still in the portfolio, or position is already closed
-    DateFrom = tn.Date.min().date()
-    if tn.NoOfUnits.sum()==0:
-        DateTo = tn.Date.max() + datetime.timedelta(days=1)
-        DateTo = DateTo.date()
-    else:
-        DateTo = datetime.datetime.today().date()
-    dates = {}
-    dates['DateFrom'] = DateFrom
-    dates['DateTo'] = DateTo
-    return dates
-#_GetETFDataDateRanges('SPY US')
-
-
 # get list of ETFs and date ranges, and query
-def GetHistoricalData(start_date=None):
-    if start_date is None:
-        tn = setup.GetAllTransactions()
-        supported_instruments = setup.GetListOfSupportedInstruments()
-        tn = tn[tn.BBGCode.isin(supported_instruments)]
-        start_date = tn.Date.min()
-    
-    #list_of_etfs = GetListOfETFs()
-    list_of_supported_instruments = setup.GetListOfSupportedInstruments()
-    # populate list of ETFs and date ranges
-    df = pd.DataFrame(columns=['BBGCode','YFTicker','DateFrom','DateTo'])
-    for i in range(len(list_of_supported_instruments)):
-        bbgcode = list_of_supported_instruments[i]
-        yf_ticker = setup.GetYahooFinanceTicker(bbgcode)
-        dates = _GetETFDataDateRanges(bbgcode)
-        date_from = dates['DateFrom']
-        date_to = dates['DateTo']
-        if date_from < start_date.date():
-            date_from = start_date.date()
-        df = df.append({'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}, ignore_index=True)
-
-    # loop through the list and collect the data from Yahoo
-    data = pd.DataFrame()
-    for i in range(len(df)):
-        row = df.iloc[i]
-        tmp = pdr.get_data_yahoo(row.YFTicker, start=row.DateFrom, end=row.DateTo)
-        tmp = tmp.reset_index()
-        tmp['BBGCode'] = row.BBGCode
-        data = data.append(tmp, ignore_index=False)
-    
-    # NEED TO DEAL WITH HK/US HOLIDAYS MISMATCH
-    tmp = data.pivot('Date','BBGCode', values='Close')
-    tmp = tmp.fillna(method='ffill')
-    tmp = tmp.reset_index()
-    tmp2 = pd.melt(tmp, id_vars=['Date'], value_vars=list(data.BBGCode.unique()), value_name='Close')
-    tmp2.dropna(inplace=True)
-    tmp2.to_csv('HistoricalPrices.csv', index=False)
-    return tmp2
+def GetHistoricalData(bbgcode=None, platform=None, start_date=None):
+    db = setup.ConnectToMongoDB()
+    coll = db['HistoricalMarketData']
+    df = pd.DataFrame(list(coll.find()))
+    df.drop(['_id'], axis=1, inplace=True)
+    return df
 
 
 historical_data = GetHistoricalData()
@@ -181,21 +130,33 @@ usdhkd = usdhkd[['Close']]
 usdhkd.columns = ['USDHKDrate']
 
 
-# calculate the value of a security (returns time series) - this works for US ETFs only
-def _CalcValuation(bbgcode, start_date=None):
+# calculate the value of a security (returns time series) - this works only when bbgcode is specified
+def _CalcValuation(bbgcode, platform=None, start_date=None):
     # assumes bbgcode can only be on 1 platform (exception VWO XLE)
-    #bbgcode='SPY US'
+    #bbgcode='XLE US'
+    #platform='FSM HK'
     #bbgcode='SCHSEAI SP'
+    
+    tn = setup.GetAllTransactions()
+    # filter by platform and bbgcode
+    if platform is not None:
+        tn = tn[tn.Platform==platform]
+    
+    tn = tn[tn.BBGCode==bbgcode]
+    
     if start_date is None:
-        tn = setup.GetAllTransactions()
+        #tn = setup.GetAllTransactions()
         supported_instruments = setup.GetListOfSupportedInstruments()
         tn = tn[tn.BBGCode.isin(supported_instruments)]
         
         if bbgcode is not None:
             tn = tn[tn.BBGCode==bbgcode]
+            
         start_date = tn.Date.min()
     
-    hd = historical_data[historical_data.BBGCode==bbgcode]      # need to add a start date in the function
+    hd = GetHistoricalData(bbgcode=bbgcode, platform=platform)
+    hd = hd[hd.BBGCode==bbgcode]
+    
     if bbgcode is None:
         hd = historical_data.copy()
     hd = hd[['Date','Close']]
@@ -209,16 +170,13 @@ def _CalcValuation(bbgcode, start_date=None):
     
     hd = hd.sort_values(['Date'], ascending=True)
     
-    tn = setup.GetTransactionsETFs()
-    tn = tn[tn.BBGCode==bbgcode]
-    
     tn = tn[['Date','NoOfUnits']]
     tn = tn[tn.Date>=start_date]
     
     # CAREFUL: if the transaction date is a holiday where there is no market data, the holdings will be missed
     
     # add balance brought forward
-    bf = _GetExistingHoldings(start_date)
+    bf = _GetExistingHoldings(start_date, platform=platform)
     bf = bf[bf.BBGCode==bbgcode]
     df = pd.merge(hd, tn, how='left', on='Date')
     # if there is balance b/f, then add it
@@ -231,10 +189,13 @@ def _CalcValuation(bbgcode, start_date=None):
     ToUSD = calc_fx.GetFXRate('USD', sec_ccy)
     df['Valuation'] = df.Holdings * df.Close
     df['ValuationUSD'] = df.Valuation * ToUSD
+    # filter out unused rows
+    
     df = df.merge(usdhkd, how='left', on='Date')
     df['USDHKDrate'] = df.USDHKDrate.fillna(method='ffill')
     df['ValuationHKD'] = df.ValuationUSD * df.USDHKDrate
     return df
+#_CalcValuation(bbgcode='XLE US', platform='FSM HK', start_date=start_date)
 
 
 # calculate the value of the entire portfolio (add up each security in the portfolio)
@@ -263,7 +224,7 @@ def CalcPortfolioHistoricalValuation(platform=None, bbgcode=None, start_date=Non
     # loop through the list
     for i in range(len(instruments_in_scope)):
         bbgcode = instruments_in_scope[i]
-        tmp = _CalcValuation(bbgcode, start_date)
+        tmp = _CalcValuation(bbgcode=bbgcode, platform=platform, start_date=start_date)
         # remove redundant rows
         tmp = tmp[~((tmp.NoOfUnits==0) & (tmp.Holdings==0))]
         tmp['BBGCode'] = bbgcode
@@ -471,7 +432,7 @@ def _xirr(values, dates):
 
 # calculate the IRR
 def CalcIRR(platform=None, bbgcode=None, period=None):
-    #platform = 'FSM SG'
+    #platform = 'FSM HK'
     #bbgcode = 'ARKK US'
     #period = None      #since inception
     #period = 'YTD'
@@ -520,8 +481,11 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
         # process cashflows
         cf = df[df.Date >= date_range_start_dt].copy()
         cf.loc[cf.Type=='Buy', 'Cashflow'] = cf.loc[cf.Type=='Buy', 'CostInPlatformCcy'] * -1
-        cf.loc[cf.Type=='Sell', 'Cashflow'] = cf.loc[cf.Type=='Sell', 'CostInPlatformCcy'] * -1
+        # realised PnL needs to be taken into account to the cashflow calculation too!
+        cf.loc[cf.Type=='Sell', 'Cashflow'] = cf.loc[cf.Type=='Sell', 'CostInPlatformCcy'] * -1 + cf.loc[cf.Type=='Sell', 'RealisedPnL']
+        #+ cf.loc[cf.Type=='Sell', 'RealisedPnL'] * -1
         cf.loc[cf.Type=='Dividend', 'Cashflow'] = cf.loc[cf.Type=='Dividend', 'RealisedPnL']
+        
         
         # get platform and currency
         platforms = list(cf.Platform.unique())
@@ -576,7 +540,7 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
             irr = (1+annualised_irr)**(no_of_days/365)-1
         else:
             irr = annualised_irr
-    
+
         # return the calc results
         dic = {'StartDate':date_range_start_dt,
                'InitialCashflow':val_start.CashflowInHKD.iloc[0],
@@ -593,8 +557,8 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
 #CalcIRR('FSM HK', period='6m')
 #CalcIRR('FSM HK', period='1y')
 #CalcIRR('FSM HK', period='ytd')
-
 #CalcIRR()
+#CalcIRR(period='YTD')
 #CalcIRR(period='1W')
 #CalcIRR(period='1M')
 # print (CalcIRR(period='3M'))

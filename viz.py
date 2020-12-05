@@ -114,7 +114,7 @@ def DisplayReturnPct():
     print ('> 1Y:  \t\t' + '{:,.2%}'.format(ar_1Y['IRR']))
     print ('> 3Y:  \t\t' + '{:,.2%}'.format(ar_3Y['IRR']))
     print ('> 5Y:  \t\t' + '{:,.2%}'.format(ar_5Y['IRR']))
-    print ('> Since inception:  \t\t' + '{:,.2%}'.format(ar_SI['IRR']))
+#    print ('> Since inception:  \t\t' + '{:,.2%}'.format(ar_SI['IRR']))
     print ('')
 
     # plot the returns on a bar chart
@@ -143,9 +143,10 @@ def DisplayReturnPct():
     ax.bar(date_ranges[return_negative], values[return_negative], color='red')
     
     ax.set_ylabel('Annualised Return % for date range above 1Y')
-    title = 'Portfolio Performance - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    title = 'Portfolio Performance (IRR) - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
     #ax.legend()
+    vals = ax.get_yticks()
     ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
     for ymaj in ax.yaxis.get_majorticklocs():
         ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
@@ -204,7 +205,7 @@ def PlotPortfolioComposition():
     ax.set_title(title)
     #plt.legend(wedges, labels_with_pct, loc='center', bbox_to_anchor=(-0.1, 1.), fontsize=8)
     plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\PortfolioComposition.png', format='png', dpi=300, bbox_inches='tight')
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\PortfolioComposition.png', format='png', dpi=150, bbox_inches='tight')
     plt.show()
     
     
@@ -318,7 +319,7 @@ def PlotCurrecnyExposureAssetAllocation():
 
 
 # plot line of costs for US ETF portfolio
-def PlotCostvsVal(period='1Y', platform=None):
+def PlotCostvsVal(period='6M', platform=None):
     # collect the data
     hist_cost = calc_returns.CalcPortfolioHistoricalCost(platform=platform)
     #hist_valuation = calc_returns.hist_valuation
@@ -336,7 +337,10 @@ def PlotCostvsVal(period='1Y', platform=None):
     
     # create the plots
     fig, ax = plt.subplots()    # can set dpi=150 or 200 for bigger image; figsize=(8,6)
-    title = 'Investment Cost vs Valuation - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
+    title = 'Investment Cost vs Valuation' 
+    if platform is not None:
+        title = title + ' (%s)' % platform
+    title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
     # add subtitle with return %
     ar_etf = calc_returns.CalcIRR(period=period, platform=platform)
@@ -366,16 +370,25 @@ def PlotCostvsVal(period='1Y', platform=None):
     x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
     ax.annotate('Transfer in; built up positions',
                 xy=('2020-09-01', y2.iloc[x2_pos]),
-                xytext=(-200, 20),
+                xytext=(20, 0),
                 textcoords='offset points', color='gray',
                 arrowprops=dict(arrowstyle='-|>', color='gray')
                 )
 
-    # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in Tech
+    # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
     x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
-    ax.annotate('Took profit from Airlines, reinvested in Innovation',
+    ax.annotate('Took profit from JETS, reinvested in ARKK',
                 xy=('2020-11-24', y2.iloc[x2_pos]),
-                xytext=(-275, 0),
+                xytext=(-250, 0),
+                textcoords='offset points', color='gray',
+                arrowprops=dict(arrowstyle='-|>', color='gray')
+                )
+    
+    # add annotation: 4 Dec 2020 took profit from Tech
+    x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
+    ax.annotate('Took profit from Tech',
+                xy=('2020-12-04', y2.iloc[x2_pos]),
+                xytext=(-150, 0),
                 textcoords='offset points', color='gray',
                 arrowprops=dict(arrowstyle='-|>', color='gray')
                 )
@@ -384,6 +397,9 @@ def PlotCostvsVal(period='1Y', platform=None):
     plt.xticks(rotation=45, ha='right')
     fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\CostVsValuation.png', format='png', dpi=300, bbox_inches='tight')
     plt.show()
+#PlotCostvsVal(period='6M', platform='FSM HK')
+#PlotCostvsVal(period='3M', platform='FSM HK') #BUGGED
+#PlotCostvsVal(period='6M', platform='FSM SG')
 
 
 # plot the top 10 holdings
@@ -466,7 +482,7 @@ def PlotRealisedPnLOverTime(period='1Y'):
     for ymaj in ax.yaxis.get_majorticklocs():
         ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
     
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\Last_1Y_PnL.png', format='png', dpi=300)
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\Last_1Y_PnL.png', format='png', dpi=300, bbox_inches='tight')
     plt.show()
 
 

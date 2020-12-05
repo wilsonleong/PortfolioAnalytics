@@ -323,3 +323,23 @@ def GetTransactionsETFs():
 def GetBankAndCashBalances():
     df = pd.read_excel(_setupfile, sheet_name='Cash')
     return df
+
+
+# determine which date ranges to collect historical data for
+def GetETFDataDateRanges(bbgcode):
+    #bbgcode='SPY US'
+    tn = GetTransactionsETFs()
+    tn = tn[tn.BBGCode==bbgcode]
+    
+    # check if security is still in the portfolio, or position is already closed
+    DateFrom = tn.Date.min().date()
+    if tn.NoOfUnits.sum()==0:
+        DateTo = tn.Date.max() + datetime.timedelta(days=1)
+        DateTo = DateTo.date()
+    else:
+        DateTo = datetime.datetime.today().date()
+    dates = {}
+    dates['DateFrom'] = DateFrom
+    dates['DateTo'] = DateTo
+    return dates
+#_GetETFDataDateRanges('SPY US')
