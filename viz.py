@@ -82,44 +82,86 @@ def DisplaySummary():
     print ('> %s EUR' % '{:,.0f}'.format(total_EUR))
     print ('> %s GBP' % '{:,.0f}'.format(total_GBP))
     print ('> %s SGD' % '{:,.0f}'.format(total_SGD))
-    
     # print annualised returns on FSM HK & SG accounts
     ar_fsmhk = calc_returns.CalcModDietzReturn('FSM HK')
     ar_fsmsg = calc_returns.CalcModDietzReturn('FSM SG')
-    
-    # IRR
-    ar_etf = calc_returns.CalcIRR(period='YTD')
-    ar_etf_1W = calc_returns.CalcIRR(period='1W')
-    ar_etf_1M = calc_returns.CalcIRR(period='1M')
-    ar_etf_3M = calc_returns.CalcIRR(period='3M')
-    ar_etf_6M = calc_returns.CalcIRR(period='6M')
-    ar_etf_1Y = calc_returns.CalcIRR(period='1Y')
-    ar_etf_3Y = calc_returns.CalcIRR(period='3Y')
-    ar_etf_5Y = calc_returns.CalcIRR(period='5Y')
-    #ar_etf = calc_returns.CalcIRR(platform='FSM HK')
-    #ar_etf_1W = calc_returns.CalcIRR(platform='FSM HK', period='1W')
-    #ar_etf_1M = calc_returns.CalcIRR(platform='FSM HK', period='1M')
-    #ar_etf_3M = calc_returns.CalcIRR(platform='FSM HK', period='3M')
-    #ar_etf_6M = calc_returns.CalcIRR(platform='FSM HK', period='6M')
-    #ar_etf_1Y = calc_returns.CalcIRR(platform='FSM HK', period='1Y')
-    #ar_etf_3Y = calc_returns.CalcIRR(platform='FSM HK', period='3Y')
     print ('')
     print ('Annualised returns from inception (time-weighted):')
     print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
     print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
     print ('')
+
+
+# display return %
+def DisplayReturnPct():    
+    # IRR
+    ar_YTD = calc_returns.CalcIRR(period='YTD')
+    ar_1W = calc_returns.CalcIRR(period='1W')
+    ar_1M = calc_returns.CalcIRR(period='1M')
+    ar_3M = calc_returns.CalcIRR(period='3M')
+    ar_6M = calc_returns.CalcIRR(period='6M')
+    ar_1Y = calc_returns.CalcIRR(period='1Y')
+    ar_3Y = calc_returns.CalcIRR(period='3Y')
+    ar_5Y = calc_returns.CalcIRR(period='5Y')
+    #ar_SI = calc_returns.CalcIRR()
+
     print ('Performance of Yahoo Finance supported instruments (money-weighted):')
-    print ('> YTD: \t\t' + '{:,.2%}'.format(ar_etf['IRR']))
-    print ('> 1W:  \t\t' + '{:,.2%}'.format(ar_etf_1W['IRR']))
-    print ('> 1M:  \t\t' + '{:,.2%}'.format(ar_etf_1M['IRR']))
-    print ('> 3M:  \t\t' + '{:,.2%}'.format(ar_etf_3M['IRR']))
-    print ('> 6M:  \t\t' + '{:,.2%}'.format(ar_etf_6M['IRR']))
-    print ('> 1Y:  \t\t' + '{:,.2%}'.format(ar_etf_1Y['IRR']))
-    print ('> 3Y:  \t\t' + '{:,.2%}'.format(ar_etf_3Y['IRR']))
-    print ('> 5Y:  \t\t' + '{:,.2%}'.format(ar_etf_5Y['IRR']))
+    print ('> YTD: \t\t' + '{:,.2%}'.format(ar_YTD['IRR']))
+    print ('> 1W:  \t\t' + '{:,.2%}'.format(ar_1W['IRR']))
+    print ('> 1M:  \t\t' + '{:,.2%}'.format(ar_1M['IRR']))
+    print ('> 3M:  \t\t' + '{:,.2%}'.format(ar_3M['IRR']))
+    print ('> 6M:  \t\t' + '{:,.2%}'.format(ar_6M['IRR']))
+    print ('> 1Y:  \t\t' + '{:,.2%}'.format(ar_1Y['IRR']))
+    print ('> 3Y:  \t\t' + '{:,.2%}'.format(ar_3Y['IRR']))
+    print ('> 5Y:  \t\t' + '{:,.2%}'.format(ar_5Y['IRR']))
+    print ('> Since inception:  \t\t' + '{:,.2%}'.format(ar_SI['IRR']))
     print ('')
 
-    # plot chart: portfolio composition
+    # plot the returns on a bar chart
+    # prepare the data
+    date_ranges = np.array(['YTD','1W','1M','3M','6M','1Y','3Y','5Y'
+                            #,'Since Inception'
+                            ])
+    values = np.array([ar_YTD['IRR'],
+              ar_1W['IRR'],
+              ar_1M['IRR'],
+              ar_3M['IRR'],
+              ar_6M['IRR'],
+              ar_1Y['IRR'],
+              ar_3Y['IRR'],
+              ar_5Y['IRR']#,
+              #ar_SI['IRR']
+              ])
+    # plot the chart
+    fig, ax = plt.subplots()
+    return_positive = values > 0
+    return_negative = values < 0
+    # plot the date ranges with empty values first (to set the order)
+    ax.bar(date_ranges, [0]*len(date_ranges))
+    # then plot postive first, and then negative
+    ax.bar(date_ranges[return_positive], values[return_positive], color='green')
+    ax.bar(date_ranges[return_negative], values[return_negative], color='red')
+    
+    ax.set_ylabel('Annualised Return % for date range above 1Y')
+    title = 'Portfolio Performance - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    ax.set_title(title)
+    #ax.legend()
+    ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
+    for ymaj in ax.yaxis.get_majorticklocs():
+        ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
+    #plt.bar(range(len(date_ranges)), values, align='edge', width=0.3)
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\Performance.png', format='png', dpi=300)
+    plt.show()
+
+
+# plot chart: portfolio composition
+def PlotPortfolioComposition():
+    # prepare data
+    pcr = calc_summary.GetPortfolioSummary()
+    pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
+    pct.reset_index(inplace=True)
+
+    # plot bar chart
     pct['Percentage']=pct['CurrentValueInHKD']/pct.CurrentValueInHKD.sum()
     labels = list(pct.Category)
     #sizes = list(pct.CurrentValueInHKD)
@@ -140,7 +182,6 @@ def DisplaySummary():
         ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
     plt.gca().invert_yaxis()
     plt.show()
-
 
     # 2020-12-01: plot donut chart by category
     labels_with_pct = []
@@ -163,20 +204,12 @@ def DisplaySummary():
     ax.set_title(title)
     #plt.legend(wedges, labels_with_pct, loc='center', bbox_to_anchor=(-0.1, 1.), fontsize=8)
     plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\PortfolioComposition.png', format='png', dpi=300, bbox_inches='tight')
     plt.show()
     
-    PlotPortfolioComposition('SecurityCcy')
-    PlotPortfolioComposition('SecurityType')
-
-    # # Composition by Treemap
-    # import squarify
-    # color_list=['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#46f0f0', '#f032e6', '#bcf60c', '#fabebe', '#008080', '#e6beff', '#9a6324', '#fffac8', '#800000', '#aaffc3', '#808000', '#ffd8b1', '#000075', '#808080', '#ffffff', '#000000']
-    # squarify.plot(sizes=sizes, label=labels_with_pct, color=color_list, alpha=0.7)
-
-
-
+    
 # 2020-12-02: plot donut chart by security currency
-def PlotPortfolioComposition():
+def PlotCurrecnyExposureAssetAllocation():
     by1 = 'SecurityCcy'
     title = 'Currency Exposure'
     by2 = 'SecurityType'
@@ -224,7 +257,7 @@ def PlotPortfolioComposition():
     values2 = pct2.Percentage
     categories_with_pct2 = []
     for i in range(len(categories2)):
-        categories_with_pct2.append(categories2[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
+        categories_with_pct2.append(categories2[i] + ' (%s)' % '{:,.2%}'.format(values2[i]))
         
     wedges2, texts2 = ax2.pie(values2, wedgeprops=dict(width=0.3), startangle=-40)
     #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
@@ -240,6 +273,8 @@ def PlotPortfolioComposition():
         ax2.annotate(categories_with_pct2[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
     ax2.set_title(title2)
     
+    #fig.tight_layout()
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\CurrencyExposureAndAssetAllocation.png', format='png', dpi=300, bbox_inches='tight')
     plt.show()
 
 
@@ -283,11 +318,11 @@ def PlotPortfolioComposition():
 
 
 # plot line of costs for US ETF portfolio
-def PlotCostvsVal(period='1Y'):
+def PlotCostvsVal(period='1Y', platform=None):
     # collect the data
-    hist_cost = calc_returns.CalcPortfolioHistoricalCost()
-    #hist_valuation = CalcPortfolioHistoricalValuation()
-    hist_valuation = calc_returns.hist_valuation
+    hist_cost = calc_returns.CalcPortfolioHistoricalCost(platform=platform)
+    #hist_valuation = calc_returns.hist_valuation
+    hist_valuation = calc_returns.CalcPortfolioHistoricalValuation(platform=platform)
     
     df = hist_valuation.merge(hist_cost, how='left', on='Date')
     df = df.fillna(method='ffill')
@@ -304,7 +339,7 @@ def PlotCostvsVal(period='1Y'):
     title = 'Investment Cost vs Valuation - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
     # add subtitle with return %
-    ar_etf = calc_returns.CalcIRR(period=period)
+    ar_etf = calc_returns.CalcIRR(period=period, platform=platform)
     subtitle = 'Performance %s: %s' % (period, '{0:.2%}'.format(ar_etf['IRR']))
     
     fig.suptitle(title, fontsize=12)
@@ -347,6 +382,7 @@ def PlotCostvsVal(period='1Y'):
     
     #fig.autofmt_xdate(rotation=45)
     plt.xticks(rotation=45, ha='right')
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\CostVsValuation.png', format='png', dpi=300, bbox_inches='tight')
     plt.show()
 
 
@@ -374,11 +410,12 @@ def PlotTopHoldings():
     for index, value in enumerate(sizes_pct):
         ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
     plt.gca().invert_yaxis()
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\TopHoldings.png', format='png', dpi=300, bbox_inches='tight')
     plt.show()
 
 
 # plots a stacked bar chart of realised PnL over time
-def PlotRealisedPnLOverTime(period='6M'):
+def PlotRealisedPnLOverTime(period='1Y'):
     # set the date range
     if period is not None:
         start_date = calc_returns.GetStartDate(period)
@@ -428,8 +465,8 @@ def PlotRealisedPnLOverTime(period='6M'):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
     for ymaj in ax.yaxis.get_majorticklocs():
         ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
+    
+    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\Last_1Y_PnL.png', format='png', dpi=300)
     plt.show()
-
-
 
 
