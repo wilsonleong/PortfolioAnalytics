@@ -95,43 +95,42 @@ def DisplaySummary():
 # display return %
 def DisplayReturnPct():    
     # IRR
-    ar_YTD = calc_returns.CalcIRR(period='YTD')
-    ar_1W = calc_returns.CalcIRR(period='1W')
-    ar_1M = calc_returns.CalcIRR(period='1M')
-    ar_3M = calc_returns.CalcIRR(period='3M')
-    ar_6M = calc_returns.CalcIRR(period='6M')
-    ar_1Y = calc_returns.CalcIRR(period='1Y')
-    ar_3Y = calc_returns.CalcIRR(period='3Y')
-    ar_5Y = calc_returns.CalcIRR(period='5Y')
-    #ar_SI = calc_returns.CalcIRR()
+    date_ranges = util.date_ranges
+    # get the IRR for the date ranges
+    returns = {}
+    for i in range(len(date_ranges)):
+        returns[date_ranges[i]] = calc_returns.CalcIRR(period=date_ranges[i])
 
+    # get the IRR % only
+    returns_irr = {}
+    for i in range(len(date_ranges)):
+        returns_irr[date_ranges[i]] = returns[date_ranges[i]]['IRR']
+    
     print ('Performance of Yahoo Finance supported instruments (money-weighted):')
-    print ('> YTD: \t\t' + '{:,.2%}'.format(ar_YTD['IRR']))
-    print ('> 1W:  \t\t' + '{:,.2%}'.format(ar_1W['IRR']))
-    print ('> 1M:  \t\t' + '{:,.2%}'.format(ar_1M['IRR']))
-    print ('> 3M:  \t\t' + '{:,.2%}'.format(ar_3M['IRR']))
-    print ('> 6M:  \t\t' + '{:,.2%}'.format(ar_6M['IRR']))
-    print ('> 1Y:  \t\t' + '{:,.2%}'.format(ar_1Y['IRR']))
-    print ('> 3Y:  \t\t' + '{:,.2%}'.format(ar_3Y['IRR']))
-    print ('> 5Y:  \t\t' + '{:,.2%}'.format(ar_5Y['IRR']))
-#    print ('> Since inception:  \t\t' + '{:,.2%}'.format(ar_SI['IRR']))
+    for i in range(len(returns_irr)):
+        print ('> %s: \t\t' % list(returns_irr.keys())[i] + '{:,.2%}'.format(list(returns_irr.values())[i]))
     print ('')
 
     # plot the returns on a bar chart
     # prepare the data
-    date_ranges = np.array(['YTD','1W','1M','3M','6M','1Y','3Y','5Y'
-                            #,'Since Inception'
-                            ])
-    values = np.array([ar_YTD['IRR'],
-              ar_1W['IRR'],
-              ar_1M['IRR'],
-              ar_3M['IRR'],
-              ar_6M['IRR'],
-              ar_1Y['IRR'],
-              ar_3Y['IRR'],
-              ar_5Y['IRR']#,
-              #ar_SI['IRR']
-              ])
+    date_ranges = np.array(date_ranges)
+    values = np.array(list(returns_irr.values()))
+
+    # get SPX returns as benchmark
+    spx = calc_returns.GetSPXReturns()
+    #spx_returns = np.array(spx.Returns)
+
+    # compare porfolio returns vs SPX    
+    YTD_spx_diff = returns_irr['YTD'] - spx.loc['YTD','Returns']
+    if YTD_spx_diff >= 0:
+        comp_label = 'Beats'
+        annotate_colour = 'tab:green'
+    else:
+        comp_label = 'Under-performs'
+        annotate_colour = 'tab:red'
+    comp_full_text = '%s SPX by %s' % (comp_label, '{:.2%}'.format(YTD_spx_diff))
+
+
     # plot the chart
     fig, ax = plt.subplots()
     return_positive = values > 0
@@ -139,9 +138,25 @@ def DisplayReturnPct():
     # plot the date ranges with empty values first (to set the order)
     ax.bar(date_ranges, [0]*len(date_ranges))
     # then plot postive first, and then negative
-    ax.bar(date_ranges[return_positive], values[return_positive], color='green')
-    ax.bar(date_ranges[return_negative], values[return_negative], color='red')
-    
+    ax.bar(date_ranges[return_positive], values[return_positive], color='tab:green')
+    ax.bar(date_ranges[return_negative], values[return_negative], color='tab:red')
+
+    # add SPX as benchmark
+    ax.plot(date_ranges, list(spx.Returns), color='tab:blue', 
+            marker='_', markeredgewidth=2, markersize=20,
+            label='SPX', lw=0)
+
+    # add annotate text
+    ax.annotate(comp_full_text,
+            xy=(0, returns_irr['YTD']),
+            xytext=(0, 50),
+            textcoords='offset points', 
+            color=annotate_colour,
+            weight='bold',
+            arrowprops=dict(arrowstyle='-|>', color=annotate_colour)
+            )
+
+    # finalise chart
     ax.set_ylabel('Performance % (>1Y annualised)')
     #ax.set_ylabel('Annualised Return % for date range above 1Y')
     title = 'Portfolio Performance (IRR) - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
@@ -151,12 +166,12 @@ def DisplayReturnPct():
     ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
     for ymaj in ax.yaxis.get_majorticklocs():
         ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
-    #plt.bar(range(len(date_ranges)), values, align='edge', width=0.3)
-    
+
     # save output as PNG
     output_filename = 'Performance.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
+    plt.legend()
     plt.show()
 
 
@@ -393,7 +408,7 @@ def PlotCostvsVal(period='6M', platform=None):
         x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
         ax.annotate('Transfer in; built up positions',
                     xy=('2020-09-01', y2.iloc[x2_pos]),
-                    xytext=(20, 0),
+                    xytext=(20, 20),
                     textcoords='offset points', color='gray',
                     arrowprops=dict(arrowstyle='-|>', color='gray')
                     )
