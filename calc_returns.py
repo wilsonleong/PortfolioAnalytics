@@ -19,39 +19,7 @@ import dateutil.relativedelta
 import calc_summary
 import calc_fx
 import mdata
-
-
-# function to return start dates for YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday
-def GetStartDate(period=None):
-    #period='1m'
-    if period is None:
-        tn = setup.GetAllTransactions()
-        supported_instruments = setup.GetListOfSupportedInstruments()
-        tn = tn[tn.BBGCode.isin(supported_instruments)]
-        start_date = tn.Date.min()    # since inception
-    else:
-        period = period.upper()
-    # supported periods: YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday (up to start of today)
-        today = datetime.datetime.today().date()
-        if period=='YTD':
-            start_date = datetime.datetime(today.year, 1, 1)
-        elif period=='1W':
-            start_date = today + datetime.timedelta(days=-7)
-        elif period=='1M':
-            start_date = today + dateutil.relativedelta.relativedelta(months=-1)
-        elif period=='3M':
-            start_date = today + dateutil.relativedelta.relativedelta(months=-3)
-        elif period=='6M':
-            start_date = today + dateutil.relativedelta.relativedelta(months=-6)
-        elif period=='1Y' or period=='12M':
-            start_date = today + dateutil.relativedelta.relativedelta(years=-1)
-        elif period=='3Y':
-            start_date = today + dateutil.relativedelta.relativedelta(years=-3)
-        elif period=='5Y':
-            start_date = today + dateutil.relativedelta.relativedelta(years=-5)
-        elif period=='10Y':
-            start_date = today + dateutil.relativedelta.relativedelta(years=-10)
-    return start_date
+import util
 
 
 # function to get the balance brought forward (of supported instruments)
@@ -238,7 +206,7 @@ def CalcModDietzReturn(platform, bbgcode=None, period=None):
 
     # filter on date range for the transactions / cash flows
     if period is not None:
-        start_date = GetStartDate(period)
+        start_date = util.GetStartDate(period)
         df = df[df.Date >= np.datetime64(start_date)]
     
     # filter the data based on selection criteria (bbgcode, or platform)
@@ -431,7 +399,7 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
         df = df[df.BBGCode==bbgcode]
 
     # get the start date for cashflows (the sum of anything before needs to be added as a single cashflow)
-    date_range_start = GetStartDate(period)
+    date_range_start = util.GetStartDate(period)
     
     # apply the start date from applicable transactions
     earliest_transaction_date = df.Date.min()
@@ -545,3 +513,44 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
 # print (CalcIRR(period='6M'))
 # print (CalcIRR(period='1Y'))
 # print (CalcIRR(period='3Y'))
+
+
+# Calculates SPX performance: YTD 1W 1M 3M 6M 1Y 3Y 5Y
+def GetSPXReturns():
+    spx = mdata.GetHistoricalSPX()
+    date_ranges = ['YTD','1W','1M','3M','6M','1Y','3Y','5Y']
+    start_dates = {}
+    for i in range(len(date_ranges)):
+        start_dates[date_ranges[i]] = util.GetStartDate(date_ranges[i])
+    
+    # gets the last price before the specified date
+    def _GetPrice(dt):
+        price = spx[spx.Date<=dt].tail(1).SPX.iloc[0]
+        return price
+
+    spx_prices = {}
+    for i in range(len(date_ranges)):
+        spx_prices[date_ranges[i]] = _GetPrice(start_dates[date_ranges[i]])
+        
+    df = pd.DataFrame(data=spx_prices, index=[0])
+    df = df.melt(var_name='DateRange',value_name='Price')
+    df['LatestPrice'] = spx.tail(1).SPX.iloc[0]
+    df['CumulativeReturn'] = df.LatestPrice / df.Price - 1
+    
+    # annualise returns for those beyond 1Y
+    def _AnnualiseReturn(cum_return: float, date_range: str) -> float:
+        if date_range[-1]=='Y':
+            years = int(date_range[:-1])
+            ar = ((cum_return + 1)**(1 / years)) - 1
+        else:
+            ar = cum_return
+        return ar
+    
+    # apply the annualised return
+    for i in range(len(df)):
+        df.loc[i,'AnnualisedReturn'] = _AnnualiseReturn(df.loc[i,'CumulativeReturn'], df.loc[i,'DateRange'])
+    
+    df.set_index('DateRange', inplace=True)
+    return df
+    
+

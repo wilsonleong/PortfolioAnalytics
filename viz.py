@@ -26,6 +26,7 @@ import matplotlib.dates as mdates
 import calc_summary
 import calc_returns
 import calc_fx
+import util
 _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots'
 
 
@@ -121,7 +122,7 @@ def DisplayReturnPct():
     #spx_returns = np.array(spx.Returns)
 
     # compare porfolio returns vs SPX    
-    YTD_spx_diff = returns_irr['YTD'] - spx.loc['YTD','Returns']
+    YTD_spx_diff = returns_irr['YTD'] - spx.loc['YTD','AnnualisedReturn']
     if YTD_spx_diff >= 0:
         comp_label = 'Beats'
         annotate_colour = 'tab:green'
@@ -142,7 +143,7 @@ def DisplayReturnPct():
     ax.bar(date_ranges[return_negative], values[return_negative], color='tab:red')
 
     # add SPX as benchmark
-    ax.plot(date_ranges, list(spx.Returns), color='tab:blue', 
+    ax.plot(date_ranges, list(spx.AnnualisedReturn), color='tab:blue', 
             marker='_', markeredgewidth=2, markersize=20,
             label='SPX', lw=0)
 
