@@ -26,6 +26,7 @@ import matplotlib.dates as mdates
 import calc_summary
 import calc_returns
 import calc_fx
+_output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots'
 
 
 # displays a summary in the console (text)
@@ -50,21 +51,12 @@ def DisplaySummary():
 
 
     # Portfolio composition report
-    #pcr = calc_summary.GetPortfolioSummaryIncCash()
-    pcr = calc_summary.GetPortfolioSummary()
-    #pcr = calc_summary.ps
+    #pcr = calc_summary.GetPortfolioSummary()
+    pcr = calc_summary.ps
     pcr.to_csv('PortfolioSummaryInHKD.csv', index=False)
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
-
-    # calculate the equivalent in other currencies
-    ps_inc_cash = calc_summary.GetPortfolioSummaryIncCash()
-    total_inc_cash = ps_inc_cash.CurrentValueInHKD.sum()
-    total_USD = calc_fx.ConvertTo('USD','HKD',total_inc_cash)
-    total_EUR = calc_fx.ConvertTo('EUR','HKD',total_inc_cash)
-    total_GBP = calc_fx.ConvertTo('GBP','HKD',total_inc_cash)
-    total_SGD = calc_fx.ConvertTo('SGD','HKD',total_inc_cash)
 
     print ('\nTotal investments (exc. cash) by category in HKD equivalent:')
     for i in range(len(pct)):
@@ -75,6 +67,14 @@ def DisplaySummary():
         pc = '%s' % '{:,.2f}'.format(value / total * 100) + '%'
         print ('%s \t %s' % (cat_withspace, pc))
     print ('Total investments: %s HKD' % '{:,.0f}'.format(total))
+
+    # calculate the equivalent in other currencies
+    ps_inc_cash = calc_summary.GetPortfolioSummaryIncCash()
+    total_inc_cash = ps_inc_cash.CurrentValueInHKD.sum()
+    total_USD = calc_fx.ConvertTo('USD','HKD',total_inc_cash)
+    total_EUR = calc_fx.ConvertTo('EUR','HKD',total_inc_cash)
+    total_GBP = calc_fx.ConvertTo('GBP','HKD',total_inc_cash)
+    total_SGD = calc_fx.ConvertTo('SGD','HKD',total_inc_cash)
     
     print ('\nTotal portfolio value including cash:')
     print ('> %s HKD' % '{:,.0f}'.format(total_inc_cash))
@@ -142,7 +142,8 @@ def DisplayReturnPct():
     ax.bar(date_ranges[return_positive], values[return_positive], color='green')
     ax.bar(date_ranges[return_negative], values[return_negative], color='red')
     
-    ax.set_ylabel('Annualised Return % for date range above 1Y')
+    ax.set_ylabel('Performance % (>1Y annualised)')
+    #ax.set_ylabel('Annualised Return % for date range above 1Y')
     title = 'Portfolio Performance (IRR) - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
     #ax.legend()
@@ -151,14 +152,19 @@ def DisplayReturnPct():
     for ymaj in ax.yaxis.get_majorticklocs():
         ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
     #plt.bar(range(len(date_ranges)), values, align='edge', width=0.3)
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\Performance.png', format='png', dpi=300)
+    
+    # save output as PNG
+    output_filename = 'Performance.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
 
 # plot chart: portfolio composition
 def PlotPortfolioComposition():
     # prepare data
-    pcr = calc_summary.GetPortfolioSummary()
+    #pcr = calc_summary.GetPortfolioSummary()
+    pcr = calc_summary.ps
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
 
@@ -205,16 +211,20 @@ def PlotPortfolioComposition():
     ax.set_title(title)
     #plt.legend(wedges, labels_with_pct, loc='center', bbox_to_anchor=(-0.1, 1.), fontsize=8)
     plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\PortfolioComposition.png', format='png', dpi=150, bbox_inches='tight')
+    
+    # save output as PNG
+    output_filename = 'PortfolioComposition.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
     
     
 # 2020-12-02: plot donut chart by security currency
 def PlotCurrecnyExposureAssetAllocation():
     by1 = 'SecurityCcy'
-    title = 'Currency Exposure'
+    title = 'Currency Exposure (inc. FX & cash)'
     by2 = 'SecurityType'
-    title2 = 'Asset Allocation'
+    title2 = 'Asset Allocation (inc. FX & cash)'
     
     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     title2 = title2 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
@@ -275,51 +285,63 @@ def PlotCurrecnyExposureAssetAllocation():
     ax2.set_title(title2)
     
     #fig.tight_layout()
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\CurrencyExposureAndAssetAllocation.png', format='png', dpi=300, bbox_inches='tight')
+    
+    # save output as PNG
+    output_filename = 'CurrencyExposureAndAssetAllocation.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
 
 # # 2020-12-02: plot donut chart by security currency
-# def PlotPortfolioComposition(by='SecurityCcy'):
-#     #by='SecurityType'
-#     if by=='SecurityCcy':
-#         title = 'Currency Exposure'
-#     elif by=='SecurityType':
-#         title = 'Asset Allocation'
-#     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
+def PlotPortfolioCompositionBy(by='FundHouse'):
+    #by='SecurityType'
+    if by=='SecurityCcy':
+        title = 'Currency Exposure'
+    elif by=='SecurityType':
+        title = 'Asset Allocation'
+    if by=='FundHouse':
+        title = 'Holdings by Fund House'
+    title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
-#     pcr = calc_summary.GetPortfolioSummaryIncCash()
-#     #pcr = calc_summary.ps
-#     pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
-#     pct.reset_index(inplace=True)
-#     total = pct.CurrentValueInHKD.sum()
-#     pct['Percentage'] = pct['CurrentValueInHKD']/pct.CurrentValueInHKD.sum()
+    pcr = calc_summary.GetPortfolioSummaryIncCash()
+    #pcr = calc_summary.ps
+    pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
+    pct.reset_index(inplace=True)
+    total = pct.CurrentValueInHKD.sum()
+    pct['Percentage'] = pct['CurrentValueInHKD']/pct.CurrentValueInHKD.sum()
     
-#     categories = pct[by]
-#     values = pct.Percentage
-#     categories_with_pct = []
-#     for i in range(len(categories)):
-#         categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
-#     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-#     wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=-40)
-#     #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
-#     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
-#     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
-#     for i, p in enumerate(wedges):
-#         ang = (p.theta2 - p.theta1)/2. + p.theta1
-#         y = np.sin(np.deg2rad(ang))
-#         x = np.cos(np.deg2rad(ang))
-#         horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
-#         connectionstyle = "angle,angleA=0,angleB={}".format(ang)
-#         kw["arrowprops"].update({"connectionstyle": connectionstyle})
-#         ax.annotate(categories_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
-#     ax.set_title(title)
-#     #plt.legend(wedges, categories_with_pct, loc='center', fontsize=8)
-#     plt.show()
+    categories = pct[by]
+    values = pct.Percentage
+    categories_with_pct = []
+    for i in range(len(categories)):
+        categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
+    fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
+    wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=-40)
+    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+    bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
+    kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
+    for i, p in enumerate(wedges):
+        ang = (p.theta2 - p.theta1)/2. + p.theta1
+        y = np.sin(np.deg2rad(ang))
+        x = np.cos(np.deg2rad(ang))
+        horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
+        connectionstyle = "angle,angleA=0,angleB={}".format(ang)
+        kw["arrowprops"].update({"connectionstyle": connectionstyle})
+        ax.annotate(categories_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
+    ax.set_title(title)
+    #plt.legend(wedges, categories_with_pct, loc='center', fontsize=8)
+
+    # save output as PNG
+    output_filename = 'PortfolioCompositionBy' + by + '.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
+    plt.show()
 
 
 # plot line of costs for US ETF portfolio
 def PlotCostvsVal(period='6M', platform=None):
+    #period,platform='6M','FSM SG'
     # collect the data
     hist_cost = calc_returns.CalcPortfolioHistoricalCost(platform=platform)
     #hist_valuation = calc_returns.hist_valuation
@@ -366,39 +388,44 @@ def PlotCostvsVal(period='6M', platform=None):
     # add legend
     ax.legend(frameon=False, loc='lower center', ncol=2)
     
-    # add annotation: 01 Sep 2020 transfer of XLE VWO from Singapore account
-    x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
-    ax.annotate('Transfer in; built up positions',
-                xy=('2020-09-01', y2.iloc[x2_pos]),
-                xytext=(20, 0),
-                textcoords='offset points', color='gray',
-                arrowprops=dict(arrowstyle='-|>', color='gray')
-                )
-
-    # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
-    x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
-    ax.annotate('Took profit from JETS, reinvested in ARKK',
-                xy=('2020-11-24', y2.iloc[x2_pos]),
-                xytext=(-250, 0),
-                textcoords='offset points', color='gray',
-                arrowprops=dict(arrowstyle='-|>', color='gray')
-                )
+    if platform is None or platform=='FSM HK':
+        # add annotation: 01 Sep 2020 transfer of XLE VWO from Singapore account
+        x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
+        ax.annotate('Transfer in; built up positions',
+                    xy=('2020-09-01', y2.iloc[x2_pos]),
+                    xytext=(20, 0),
+                    textcoords='offset points', color='gray',
+                    arrowprops=dict(arrowstyle='-|>', color='gray')
+                    )
     
-    # add annotation: 4 Dec 2020 took profit from Tech
-    x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
-    ax.annotate('Took profit from Tech',
-                xy=('2020-12-04', y2.iloc[x2_pos]),
-                xytext=(-150, 0),
-                textcoords='offset points', color='gray',
-                arrowprops=dict(arrowstyle='-|>', color='gray')
-                )
+        # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
+        x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
+        ax.annotate('Took profit from JETS, reinvested in ARKK',
+                    xy=('2020-11-24', y2.iloc[x2_pos]),
+                    xytext=(-250, 0),
+                    textcoords='offset points', color='gray',
+                    arrowprops=dict(arrowstyle='-|>', color='gray')
+                    )
+        
+        # add annotation: 4 Dec 2020 took profit from Tech
+        x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
+        ax.annotate('Took profit from Tech',
+                    xy=('2020-12-04', y2.iloc[x2_pos]),
+                    xytext=(-150, 0),
+                    textcoords='offset points', color='gray',
+                    arrowprops=dict(arrowstyle='-|>', color='gray')
+                    )
     
     #fig.autofmt_xdate(rotation=45)
     plt.xticks(rotation=45, ha='right')
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\CostVsValuation.png', format='png', dpi=300, bbox_inches='tight')
+
+    # save output as PNG
+    output_filename = 'CostVsValuation.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 #PlotCostvsVal(period='6M', platform='FSM HK')
-#PlotCostvsVal(period='3M', platform='FSM HK') #BUGGED
+#PlotCostvsVal(period='3M', platform='FSM HK') #BUGGED (chart code)
 #PlotCostvsVal(period='6M', platform='FSM SG')
 
 
@@ -426,12 +453,16 @@ def PlotTopHoldings():
     for index, value in enumerate(sizes_pct):
         ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
     plt.gca().invert_yaxis()
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\TopHoldings.png', format='png', dpi=300, bbox_inches='tight')
+
+    # save output as PNG
+    output_filename = 'TopHoldings.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
 
 # plots a stacked bar chart of realised PnL over time
-def PlotRealisedPnLOverTime(period='1Y'):
+def PlotRealisedPnLOverTime(period='6M'):
     # set the date range
     if period is not None:
         start_date = calc_returns.GetStartDate(period)
@@ -481,8 +512,10 @@ def PlotRealisedPnLOverTime(period='1Y'):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
     for ymaj in ax.yaxis.get_majorticklocs():
         ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
-    
-    fig.savefig(r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots\Last_1Y_PnL.png', format='png', dpi=300, bbox_inches='tight')
-    plt.show()
 
+    # save output as PNG
+    output_filename = 'Last_%s_PnL.png' % period
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
+    plt.show()
 

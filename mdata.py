@@ -11,6 +11,7 @@ LastNavFilePath = r'D:\Wilson\Documents\Personal Documents\Investments\Portfolio
 
 
 
+import datetime
 import pandas as pd
 import yfinance as yf
 yf.pdr_override()
@@ -73,6 +74,7 @@ def UpdateLastNAV():
     df2.to_excel(LastNavFilePath, index=False)
 
 
+# Collect historical market data from Yahoo Finance; fill values for closed markets; cache on DB
 def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
     tn = setup.GetAllTransactions()
     # filter by bbgcode and platform
@@ -121,7 +123,7 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
     tmp2.dropna(inplace=True)
     #tmp2.to_csv('HistoricalPrices.csv', index=False)
     
-    # save to mongodbo
+    # save to mongodb
     db = setup.ConnectToMongoDB()
     
     coll = db['HistoricalMarketData']
@@ -130,4 +132,42 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
 
     # insert rows into the db
     coll.insert_many(tmp2.to_dict('records'))
-    return tmp2
+    #return tmp2
+
+
+# get historical NAV from cache (MongoDB)
+def GetHistoricalData(bbgcode=None, start_date=None):
+    db = setup.ConnectToMongoDB()
+    coll = db['HistoricalMarketData']
+    df = pd.DataFrame(list(coll.find()))
+    df.drop(['_id'], axis=1, inplace=True)
+    if bbgcode is not None:
+        df = df[df.BBGCode==bbgcode]
+    if start_date is not None:
+        df = df[df.Date >= start_date]
+    return df
+
+
+# Collect USDHKD historical rates and cache on DB
+def ProcessHistoricalUSDHKD():
+    # collect from Yahoo Finance
+    usdhkd = pdr.get_data_yahoo('HKD=X', start='2015-07-01', end=datetime.datetime.today())
+    usdhkd = usdhkd[['Close']]
+    usdhkd.columns = ['USDHKDrate']
+    usdhkd = usdhkd.reset_index()
+    
+    # store on DB
+    db = setup.ConnectToMongoDB()
+    coll = db['USDHKD']
+    coll.delete_many({})
+    coll.insert_many(usdhkd.to_dict('records'))
+
+
+# Get historical USDHKD from cache (MongoDB)
+def GetHistoricalUSDHKD():
+    db = setup.ConnectToMongoDB()
+    coll = db['USDHKD']
+    df = pd.DataFrame(list(coll.find()))
+    df.drop(['_id'], axis=1, inplace=True)
+    return df
+

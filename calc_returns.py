@@ -12,20 +12,13 @@ This module does the following:
 """
 
 import datetime
-
-###
-
 import setup
 import pandas as pd
 import numpy as np
 import dateutil.relativedelta
 import calc_summary
 import calc_fx
-
-# use Yahoo Finance API to collect historical prices
-import yfinance as yf
-yf.pdr_override()
-from pandas_datareader import data as pdr
+import mdata
 
 
 # function to return start dates for YTD 1W 1M 3M 6M 1Y 3Y 5Y 10Y; calculate up to end of yesterday
@@ -75,6 +68,7 @@ def _GetExistingHoldings(start_date, bbgcode=None, platform=None, base_ccy='HKD'
     holdings = holdings[holdings.NoOfUnits!=0]
     holdings = holdings.reset_index()
     # calculate the cost and valuation in base ccy equivalent (cost in platform ccy, val in sec ccy)
+    historical_data = mdata.GetHistoricalData()
     val = historical_data.copy()
     val = val[val.Date<start_date]
 
@@ -114,22 +108,6 @@ def _GetValuation(start_date):
     return val
 
 
-# get list of ETFs and date ranges, and query
-def GetHistoricalData(bbgcode=None, platform=None, start_date=None):
-    db = setup.ConnectToMongoDB()
-    coll = db['HistoricalMarketData']
-    df = pd.DataFrame(list(coll.find()))
-    df.drop(['_id'], axis=1, inplace=True)
-    return df
-
-
-historical_data = GetHistoricalData()
-# get USDHKD rate
-usdhkd = pdr.get_data_yahoo('HKD=X', start='2015-07-01', end=datetime.datetime.today())
-usdhkd = usdhkd[['Close']]
-usdhkd.columns = ['USDHKDrate']
-
-
 # calculate the value of a security (returns time series) - this works only when bbgcode is specified
 def _CalcValuation(bbgcode, platform=None, start_date=None):
     # assumes bbgcode can only be on 1 platform (exception VWO XLE)
@@ -149,22 +127,21 @@ def _CalcValuation(bbgcode, platform=None, start_date=None):
         supported_instruments = setup.GetListOfSupportedInstruments()
         tn = tn[tn.BBGCode.isin(supported_instruments)]
         
-        if bbgcode is not None:
-            tn = tn[tn.BBGCode==bbgcode]
-            
+        #if bbgcode is not None:
+        tn = tn[tn.BBGCode==bbgcode]
+
         start_date = tn.Date.min()
     
-    hd = GetHistoricalData(bbgcode=bbgcode, platform=platform)
-    hd = hd[hd.BBGCode==bbgcode]
-    
-    if bbgcode is None:
-        hd = historical_data.copy()
+    hd = mdata.GetHistoricalData(bbgcode=bbgcode)
     hd = hd[['Date','Close']]
     hd_prev = hd[hd.Date<start_date].copy()
     hd_prev = hd_prev.tail(1)
     
     # filter by selected date range
     hd = hd[hd.Date>=start_date]
+    # filter by date until its no longer held
+    if tn.NoOfUnits.sum()==0:
+        hd = hd[hd.Date<tn.Date.max()]
     # add back last valuation before beginning of date range
     hd = hd.append(hd_prev)
     
@@ -191,11 +168,16 @@ def _CalcValuation(bbgcode, platform=None, start_date=None):
     df['ValuationUSD'] = df.Valuation * ToUSD
     # filter out unused rows
     
+    # load historical USDHKD exchange rates from cache
+    usdhkd = mdata.GetHistoricalUSDHKD()
+    
     df = df.merge(usdhkd, how='left', on='Date')
     df['USDHKDrate'] = df.USDHKDrate.fillna(method='ffill')
     df['ValuationHKD'] = df.ValuationUSD * df.USDHKDrate
     return df
-#_CalcValuation(bbgcode='XLE US', platform='FSM HK', start_date=start_date)
+#_CalcValuation(bbgcode='XLE US', platform='FSM HK')
+#_CalcValuation(bbgcode='XLE US', platform='FSM SG')
+#_CalcValuation(bbgcode='XLE US')
 
 
 # calculate the value of the entire portfolio (add up each security in the portfolio)
@@ -238,8 +220,6 @@ def CalcPortfolioHistoricalValuation(platform=None, bbgcode=None, start_date=Non
     agg = df.groupby(['Date']).agg({'ValuationHKD':'sum'})
     agg = agg.reset_index()
     return agg
-# return the valuation 
-hist_valuation = CalcPortfolioHistoricalValuation()
 
 
 # compute the Modified Dietz return

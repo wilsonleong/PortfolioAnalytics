@@ -52,7 +52,7 @@ def InsertSecurity(db,
                    SecurityCcy, 
                    SecurityFXCode,
                    BBGPriceMultiplier, 
-                   FundManager,
+                   FundHouse,
                    YahooFinanceTicker
                    ):
     Security = db['Security']
@@ -71,7 +71,7 @@ def InsertSecurity(db,
            'Currency':SecurityCcy,
            'FXCode':SecurityFXCode,
            'BBGPriceMultiplier':BBGPriceMultiplier,
-           'FundManager':FundManager,
+           'FundHouse':FundHouse,
            'YahooFinanceTicker':YahooFinanceTicker
            }
 
@@ -245,7 +245,7 @@ def InitialSetup():
         ccy = row.Currency
         fxcode = row.FXCode if row.FXCode is not np.nan else None
         multiplier = int(row.BBGPriceMultiplier)
-        fm = row.FundManager
+        fm = row.FundHouse
         yf_ticker = row.YahooFinanceTicker if row.YahooFinanceTicker is not np.nan else None
         InsertSecurity(db, bbgcode, assetclass, assettype, category, name, ccy, fxcode, multiplier, fm, yf_ticker)
 

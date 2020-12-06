@@ -42,7 +42,8 @@ import mdata
 def main():
     # refresh market data
     mdata.UpdateLastNAV()
-    
+    mdata.ProcessHistoricalUSDHKD()
+
     # update latest FX
     setup.UpdateLatestFXrates()
     
@@ -57,11 +58,13 @@ def main():
     viz.DisplaySummary()
     viz.DisplayReturnPct()
     viz.PlotPortfolioComposition()
-    viz.PlotCostvsVal(period='6M', platform='FSM HK')
-    #viz.PlotCostvsVal(period='6M', platform='FSM SG') # BUGGED - valuation still including XLE VWO in HK acc
+    viz.PlotCostvsVal(period='6M')
+    #viz.PlotCostvsVal(period='6M', platform='FSM HK')
+    #viz.PlotCostvsVal(period='6M', platform='FSM SG') 
     viz.PlotTopHoldings()
     viz.PlotCurrecnyExposureAssetAllocation()
-    viz.PlotRealisedPnLOverTime(period='1Y')
+    viz.PlotPortfolioCompositionBy(by='FundHouse')
+    viz.PlotRealisedPnLOverTime(period='6M')
 
 
 if __name__ == "__main__":

@@ -42,7 +42,7 @@ def GetPortfolioSummary():
     tn = pd.merge(tn, sec, how='left', left_on='BBGCode', right_on='BBGCode')
 
     agg = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'RealisedPnL':sum} 
-    summary = tn.groupby(['Platform','Name','BBGCode','BBGPriceMultiplier','Currency']).agg(agg)
+    summary = tn.groupby(['Platform','Name','FundHouse','BBGCode','BBGPriceMultiplier','Currency']).agg(agg)
     summary.reset_index(inplace=True)
     summary.rename(columns={'Currency':'SecurityCurrency'},inplace=True)
 
@@ -69,7 +69,7 @@ def GetPortfolioSummary():
     summary['PnL'] = summary.CurrentValue - summary.CostInPlatformCcy #- summary.RealisedPnL
     summary.PnL = summary.PnL.round(2)
     agg2 = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'CurrentValue':sum, 'PnL':sum, 'RealisedPnL':sum}
-    ps = summary.groupby(['Platform','PlatformCurrency','Name','BBGCode','LastNAV']).agg(agg2)
+    ps = summary.groupby(['Platform','PlatformCurrency','FundHouse','Name','BBGCode','LastNAV']).agg(agg2)
     ps.reset_index(inplace=True)
 
     ps['PnLPct'] = ps.PnL / ps.CostInPlatformCcy
@@ -185,4 +185,4 @@ def GetPortfolioSummaryIncCash():
 # get calculations for other modules to use
 ps = GetPortfolioSummary()
 top_holdings = TopHoldings(ps)
-pnl_unrealised = GetPnLUnrealised()
+#pnl_unrealised = GetPnLUnrealised()
