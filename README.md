@@ -13,7 +13,7 @@
 I built my own portfolio analytics tool that consolidates all my transactions across countries and brokers, connects to Yahoo Finance via API for historical market data (NAV and FX rates), handles the FX conversions, and produces the following output:
 1. consolidated investments with NAV, realised & unrealised PnL in a single currency
 2. calculates IRR (internal rate of return) and benchmarks my portfolio returns vs S&P 500
-3. calculates composition of portfolio by predefined categories, asset currency, and asset type
+3. calculates composition of portfolio (by predefined categories, asset currency, asset type, etc.)
 4. displays top holdings
 5. plots evolution of investment cost vs valuation over time in a single currency
 6. automated PAD reporting
