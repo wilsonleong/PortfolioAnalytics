@@ -32,7 +32,7 @@ _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTrac
 
 
 # displays a summary in the console (text)
-def DisplaySummary():
+def DisplayPnL():
     # get the calculations
     pnl_unrealised = calc_summary.GetPnLUnrealised()
     # print PnL by platform and Currency
@@ -52,10 +52,12 @@ def DisplaySummary():
     print (pnl.groupby(['Platform','PlatformCurrency']).sum())
 
 
+# display portfolio summary
+def DisplayPortfolioSummary():
     # Portfolio composition report
-    #pcr = calc_summary.GetPortfolioSummary()
-    pcr = calc_summary.ps_original.copy()
-    pcr.to_csv('PortfolioSummaryInHKD.csv', index=False)
+    pcr = calc_summary.GetPortfolioSummary()
+    pcr = pcr['Original']
+    #pcr = calc_summary.ps_original.copy()
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
@@ -183,6 +185,7 @@ def DisplayReturnPct():
 
     # finalise chart
     ax.set_ylabel('Performance % (>1Y annualised)')
+    ax.set_xlabel('Date Range')
     #ax.set_ylabel('Annualised Return % for date range above 1Y')
     title = 'Portfolio Performance (IRR) - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
@@ -203,8 +206,9 @@ def DisplayReturnPct():
 # plot chart: portfolio composition
 def PlotPortfolioComposition():
     # prepare data
-    #pcr = calc_summary.GetPortfolioSummary()
-    pcr = calc_summary.ps_original.copy()
+    pcr = calc_summary.GetPortfolioSummary()
+    pcr = pcr['Original']
+    #pcr = calc_summary.ps_original.copy()
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
 
@@ -260,45 +264,50 @@ def PlotPortfolioComposition():
     
     
 # 2020-12-02: plot donut chart by security currency
-def PlotCurrecnyExposureAssetAllocation():
-    by1 = 'SecurityCcy'
-    title = 'Currency Exposure (inc. FX & cash)'
-    by2 = 'AssetClass'
-    title2 = 'Asset Allocation (inc. FX & cash)'
-    
-    title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
-    title2 = title2 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
-    
+def PlotAssetAllocationCurrencyExposure():
+    # get the data
     pcr = calc_summary.GetPortfolioSummaryIncCash()
     
-    # Currency Exposure
-    pct = pcr.groupby(by1).agg({'CurrentValueInHKD':'sum'})
-    pct.reset_index(inplace=True)
-    total = pct.CurrentValueInHKD.sum()
-    pct['Percentage'] = pct['CurrentValueInHKD']/pct.CurrentValueInHKD.sum()
-    
-    categories = pct['SecurityCcy']
-    values = pct.Percentage
-    categories_with_pct = []
-    for i in range(len(categories)):
-        categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
-    
+    # prepare the titles
+    by1 = 'AssetClass'
+    title1 = 'Asset Allocation (inc. FX & cash)'
+    by2 = 'SecurityCcy'
+    title2 = 'Currency Exposure (inc. FX & cash)'
+    title1 = title1 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
+    title2 = title2 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
+
+    # plot the figure & axis
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax1.pie(values, wedgeprops=dict(width=0.3), startangle=-40)
-    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+
+    # Asset Allocation
+    pct1 = pcr.groupby(by1).agg({'CurrentValueInHKD':'sum'})
+    pct1.reset_index(inplace=True)
+    total1 = pct1.CurrentValueInHKD.sum()
+    pct1['Percentage'] = pct1['CurrentValueInHKD']/pct1.CurrentValueInHKD.sum()
+    
+    categories1 = pct1[by1]
+    values1 = pct1.Percentage
+    categories_with_pct1 = []
+    for i in range(len(categories1)):
+        categories_with_pct1.append(categories1[i] + ' (%s)' % '{:,.2%}'.format(values1[i]))
+        
+    wedges1, texts1 = ax1.pie(values1, wedgeprops=dict(width=0.3), startangle=180)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
-    for i, p in enumerate(wedges):
+    for i, p in enumerate(wedges1):
         ang = (p.theta2 - p.theta1)/2. + p.theta1
         y = np.sin(np.deg2rad(ang))
         x = np.cos(np.deg2rad(ang))
         horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
         connectionstyle = "angle,angleA=0,angleB={}".format(ang)
         kw["arrowprops"].update({"connectionstyle": connectionstyle})
-        ax1.annotate(categories_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
-    ax1.set_title(title)
+        ax1.annotate(categories_with_pct1[i], xy=(x, y), 
+                     xytext=(1*np.sign(x), 1.1*y),
+                     horizontalalignment=horizontalalignment, 
+                     **kw, fontsize=10)
+    ax1.set_title(title1)
     
-    # Asset Allocation
+    # Currency Exposure
     pct2 = pcr.groupby(by2).agg({'CurrentValueInHKD':'sum'})
     pct2.reset_index(inplace=True)
     total2 = pct2.CurrentValueInHKD.sum()
@@ -309,9 +318,10 @@ def PlotCurrecnyExposureAssetAllocation():
     categories_with_pct2 = []
     for i in range(len(categories2)):
         categories_with_pct2.append(categories2[i] + ' (%s)' % '{:,.2%}'.format(values2[i]))
-        
-    wedges2, texts2 = ax2.pie(values2, wedgeprops=dict(width=0.3), startangle=-60)
-    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+
+    
+    
+    wedges2, texts2 = ax2.pie(values2, wedgeprops=dict(width=0.3), startangle=20)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges2):
@@ -321,13 +331,14 @@ def PlotCurrecnyExposureAssetAllocation():
         horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
         connectionstyle = "angle,angleA=0,angleB={}".format(ang)
         kw["arrowprops"].update({"connectionstyle": connectionstyle})
-        ax2.annotate(categories_with_pct2[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
+        ax2.annotate(categories_with_pct2[i], xy=(x, y), 
+                     xytext=(1*np.sign(x), 1.1*y),
+                     horizontalalignment=horizontalalignment, 
+                     **kw, fontsize=10)
     ax2.set_title(title2)
     
-    #fig.tight_layout()
-    
     # save output as PNG
-    output_filename = 'CurrencyExposureAndAssetAllocation.png'
+    output_filename = 'AssetAllocationAndCurrencyExposure.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
@@ -346,7 +357,9 @@ def PlotPortfolioCompositionBy(by='SecurityCcy'):
         title = 'Holdings by Fund House'
     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
-    pcr = calc_summary.ps_adjusted.copy()
+    pcr = calc_summary.GetPortfolioSummary()
+    pcr = pcr['Adjusted']
+    #pcr = calc_summary.ps_adjusted.copy()
     pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
@@ -397,16 +410,18 @@ def PlotCostvsVal(period='6M', platform=None):
         start_date = datetime.datetime.combine(start_date, datetime.datetime.min.time())
         df = df[df.Date>=start_date]
         df = df.reset_index(drop=True)
-    
+
+    # get the IRR performance % for the chart title
+    ar_etf = calc_returns.CalcIRR(period=period, platform=platform)
+
     # create the plots
     fig, ax = plt.subplots()    # can set dpi=150 or 200 for bigger image; figsize=(8,6)
     title = 'Investment Cost vs Valuation' 
     if platform is not None:
         title = title + ' (%s)' % platform
     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
-    
+
     # add subtitle with return %
-    ar_etf = calc_returns.CalcIRR(period=period, platform=platform)
     subtitle = 'Performance %s: %s' % (period, '{0:.2%}'.format(ar_etf['IRR']))
     
     fig.suptitle(title, fontsize=12)
@@ -427,18 +442,10 @@ def PlotCostvsVal(period='6M', platform=None):
     ax.plot(x2, y2, linestyle='-', color='orange', label='Valuation')
     
     # add legend
-    ax.legend(frameon=False, loc='lower center', ncol=2)
+    #ax.legend(frameon=False, loc='lower center', ncol=2)
+    ax.legend(frameon=True, loc='best', ncol=1)
     
     if platform is None or platform=='FSM HK':
-        # # add annotation: 01 Sep 2020 transfer of XLE VWO from Singapore account
-        # x2_pos = x2[x2 == datetime.datetime(2020, 9, 1)].index
-        # ax.annotate('Transfer in; built up positions',
-        #             xy=('2020-09-01', y2.iloc[x2_pos]),
-        #             xytext=(20, 20),
-        #             textcoords='offset points', color='gray',
-        #             arrowprops=dict(arrowstyle='-|>', color='gray')
-        #             )
-    
         # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
         x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
         ax.annotate('Took profit from JETS, reinvested in ARKK',
@@ -473,8 +480,9 @@ def PlotCostvsVal(period='6M', platform=None):
 # plot the top 10 holdings
 def PlotTopHoldings():
     #variable with information: top_holdings
-    labels = list(calc_summary.top_holdings.Name)
-    sizes_pct = list(calc_summary.top_holdings.PortfolioPct)
+    top_holdings = calc_summary.TopHoldings()
+    labels = list(top_holdings.Name)
+    sizes_pct = list(top_holdings.PortfolioPct)
     plt.rcdefaults()
     fig, ax1 = plt.subplots()
     y_pos = np.arange(len(labels))
@@ -482,7 +490,7 @@ def PlotTopHoldings():
     ax1.barh(y_pos, sizes_pct)
     ax1.set_yticks(y_pos)
     ax1.set_yticklabels(labels)
-    ax1.set_ylabel('Security')
+    #ax1.set_ylabel('Security')
     vals = ax1.get_xticks()
     ax1.set_xticklabels(['{:,.0%}'.format(x) for x in vals])
     #ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals])
@@ -568,7 +576,9 @@ def PlotRealisedPnLOverTime(period='6M'):
 # XY plot with bubbles of PnL, PnL%, Portfolio % as size (IRR won't work because I don't hold funds long enough)
 def PlotXYBubbles(period='6M'):
     # get the data
-    ps = calc_summary.ps_original.copy()
+    ps = calc_summary.GetPortfolioSummary()
+    ps = ps['Original']
+    #ps = calc_summary.ps_original.copy()
     ps = ps[ps.NoOfUnits!=0]
 
     # # filter by supported instruments with market data
@@ -601,6 +611,8 @@ def PlotXYBubbles(period='6M'):
     fig, ax = plt.subplots()
     
     ax.scatter(x, y, s=size, c=color, alpha=0.5)
+    ax.axhline(y=0, xmin=0, xmax=1, color='black', lw=0.5)
+    ax.axvline(x=0, ymin=0, ymax=1, color='black', lw=0.5)
     
     # add labels to points
     for i, txt in enumerate(labels):

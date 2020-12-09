@@ -6,7 +6,7 @@ Created on Thu Dec  3 15:10:57 2020
 
 This module does the following:
     - compute TWRR (time-weighted rate of return), aka Modified Dietz Return
-    - compute MWRR (money-weighted raet of return), aka IRR (internal rate of return)
+    - compute MWRR (money-weighted rate of return), aka IRR (internal rate of return)
     
 
 """
@@ -109,7 +109,7 @@ def _CalcValuation(bbgcode, platform=None, start_date=None):
     hd = hd[hd.Date>=start_date]
     # filter by date until its no longer held
     if tn.NoOfUnits.sum()==0:
-        hd = hd[hd.Date<tn.Date.max()]
+        hd = hd[hd.Date<=tn.Date.max()]
     # add back last valuation before beginning of date range
     hd = hd.append(hd_prev)
     
@@ -235,8 +235,9 @@ def CalcModDietzReturn(platform, bbgcode=None, period=None):
     # realised gains/losses (sold securities + dividends)
     pnl_realised = df.RealisedPnL.sum()
     
-    #ps = calc_summary.GetPortfolioSummary()
-    ps = calc_summary.ps
+    ps = calc_summary.GetPortfolioSummary()
+    ps = ps['Original']
+    #ps = calc_summary.ps_original.copy()
     
     # unrealised pnl
     if bbgcode is not None:
@@ -433,8 +434,7 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
         cf.loc[cf.Type=='Sell', 'Cashflow'] = cf.loc[cf.Type=='Sell', 'CostInPlatformCcy'] * -1 + cf.loc[cf.Type=='Sell', 'RealisedPnL']
         #+ cf.loc[cf.Type=='Sell', 'RealisedPnL'] * -1
         cf.loc[cf.Type=='Dividend', 'Cashflow'] = cf.loc[cf.Type=='Dividend', 'RealisedPnL']
-        
-        
+
         # get platform and currency
         platforms = list(cf.Platform.unique())
         currencies = [setup.GetPlatformCurrency(x) for x in platforms]
@@ -491,6 +491,7 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
 
         # return the calc results
         dic = {'StartDate':date_range_start_dt,
+               'EndDate':cf.tail(1).Date.iloc[0],
                'InitialCashflow':val_start.CashflowInHKD.iloc[0],
                'FinalCashflow':val_end.CashflowInHKD.iloc[0],
                'IRR':irr}
@@ -552,5 +553,10 @@ def GetSPXReturns():
     
     df.set_index('DateRange', inplace=True)
     return df
-    
+
+
+# get the returns of each supported instruments
+#setup.GetListOfSupportedInstruments()
+
+
 

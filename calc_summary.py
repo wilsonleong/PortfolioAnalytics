@@ -17,6 +17,7 @@ import setup
 import pandas as pd
 import calc_val
 import calc_fx
+import mdata
 
 
 # store a copy of the output on MongoDB for future reference
@@ -42,7 +43,7 @@ def GetPortfolioSummary():
     tn = pd.merge(tn, sec, how='left', left_on='BBGCode', right_on='BBGCode')
 
     agg = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'RealisedPnL':sum} 
-    summary = tn.groupby(['Platform','Name','FundHouse','BBGCode','BBGPriceMultiplier','Currency']).agg(agg)
+    summary = tn.groupby(['Platform','Name','FundHouse','AssetClass','BBGCode','BBGPriceMultiplier','Currency']).agg(agg)
     summary.reset_index(inplace=True)
     summary.rename(columns={'Currency':'SecurityCurrency'},inplace=True)
 
@@ -69,7 +70,7 @@ def GetPortfolioSummary():
     summary['PnL'] = summary.CurrentValue - summary.CostInPlatformCcy #- summary.RealisedPnL
     summary.PnL = summary.PnL.round(2)
     agg2 = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'CurrentValue':sum, 'PnL':sum, 'RealisedPnL':sum}
-    ps = summary.groupby(['Platform','PlatformCurrency','FundHouse','Name','BBGCode','LastNAV']).agg(agg2)
+    ps = summary.groupby(['Platform','PlatformCurrency','FundHouse','AssetClass','Name','BBGCode','LastNAV']).agg(agg2)
     ps.reset_index(inplace=True)
 
     ps['PnLPct'] = ps.PnL / ps.CostInPlatformCcy
@@ -90,11 +91,50 @@ def GetPortfolioSummary():
         sec_name = row.Name
         ps.loc[i, 'Category'] = _GetSecurityCategory(sec_name)
 
+    # calculate Cost and PnL in HKD
+    ps.loc[:,'CostInHKD'] = ps.loc[:,'CurrentValueInHKD']/ps.loc[:,'CurrentValue'] * ps.loc[:,'CostInPlatformCcy']
+    ps.loc[:,'PnLInHKD'] = ps.loc[:,'CurrentValueInHKD']/ps.loc[:,'CurrentValue'] * ps.loc[:,'PnL']
+
+    # total PnL = realised + unrealised
+    # (should I add or not? TO BE DECIDED)
+
+    # special treatment to breakdown Allianz Income & Growth funds
+    # divide by 3 separate rows and allocate different asset classes
+    allianz_bbgcodes = ['ALIGH2S LX','ALLGAME LX']
+    allianz_allocations = [{'Equity': 0.33},
+                           {'Credit': 0.33},
+                           {'Convertibles': 0.34}
+                           ]
+    # generate the new rows based on allocations
+    dfAllianz = ps[ps.BBGCode.isin(allianz_bbgcodes)].copy()
+    dfAllianzNew = pd.DataFrame(columns=dfAllianz.columns)
+    for i in range(len(dfAllianz)):
+        row = dfAllianz.iloc[i]
+        for j in range(len(allianz_allocations)):
+            new_row = row.copy()
+            new_row['AssetClass'] = list(allianz_allocations[j].keys())[0]
+            new_row['NoOfUnits'] = row.NoOfUnits * list(allianz_allocations[j].values())[0]
+            new_row['CostInPlatformCcy'] = row.CostInPlatformCcy * list(allianz_allocations[j].values())[0]
+            new_row['CurrentValue'] = row.CurrentValue * list(allianz_allocations[j].values())[0]
+            new_row['PnL'] = row.PnL * list(allianz_allocations[j].values())[0]
+            new_row['RealisedPnL'] = row.RealisedPnL * list(allianz_allocations[j].values())[0]
+            new_row['CurrentValueInHKD'] = row.CurrentValueInHKD * list(allianz_allocations[j].values())[0]
+            dfAllianzNew = dfAllianzNew.append(new_row)
+    # replace the original rows with the new rows
+    ps2 = ps[~ps.BBGCode.isin(allianz_bbgcodes)].copy()
+    ps2 = ps2.append(dfAllianzNew)
+    
+    # can't assign Portfolio % when Allianz is broken down into separate asset classes
+    ps.loc[:,'PortfolioPct'] = ps.loc[:,'CurrentValueInHKD'] / ps.CurrentValueInHKD.sum()
+
     # # export Portfolio Summary for later use
     # ps.to_csv('PortfolioSummary.csv', index=False)
     # setup.UploadLatestPortfolioSummary(ps)
 
-    return ps
+    PortfolioSummary = {'Original':ps,
+                        'Adjusted':ps2}
+
+    return PortfolioSummary
 
 
 def _GetPlatformDef():
@@ -137,6 +177,8 @@ def _GetSecurityCategory(name):
 
 def GetPnLUnrealised():
     ps = GetPortfolioSummary()
+    ps = ps['Original']
+    #ps = ps_original.copy()
     ps_active = ps[ps.CurrentValue!=0]
     PnLByPlatformAndAccount = ps_active.groupby(['Platform','Name','PlatformCurrency']).agg({'CurrentValue':sum,'PnL':sum})
     PnLByPlatform = ps_active.groupby(['PlatformCurrency','Platform']).agg({'CostInPlatformCcy':sum,'CurrentValue':sum,'PnL':sum})
@@ -148,17 +190,19 @@ def GetPnLUnrealised():
 
 
 # return the top holdings in the portfolio
-def TopHoldings(ps):
-    df = ps.copy()
-    # need to convert all to HKD first
-    for i in range(len(df)):
-        row = df.iloc[i]
-        if row.PlatformCurrency=='HKD':
-            df.loc[i, 'CurrentValueHKD'] = df.loc[i, 'CurrentValue']
-        else:
-            df.loc[i, 'CurrentValueHKD'] = calc_fx.ConvertTo('HKD', df.loc[i, 'PlatformCurrency'], df.loc[i, 'CurrentValue'])
-    df.loc[:,'PortfolioPct'] = df.loc[:,'CurrentValueHKD'] / df.CurrentValueHKD.sum()
-    df = df.sort_values(['CurrentValueHKD'], ascending=False)[['Name','CurrentValueHKD','PortfolioPct']].head(10)
+def TopHoldings():
+    #df = portfolio_summary.copy()
+    df = GetPortfolioSummary()
+    df = df['Original']
+    # # need to convert all to HKD first
+    # for i in range(len(df)):
+    #     row = df.iloc[i]
+    #     if row.PlatformCurrency=='HKD':
+    #         df.loc[i, 'CurrentValueHKD'] = df.loc[i, 'CurrentValue']
+    #     else:
+    #         df.loc[i, 'CurrentValueHKD'] = calc_fx.ConvertTo('HKD', df.loc[i, 'PlatformCurrency'], df.loc[i, 'CurrentValue'])
+    df.loc[:,'PortfolioPct'] = df.loc[:,'CurrentValueInHKD'] / df.CurrentValueInHKD.sum()
+    df = df.sort_values(['CurrentValueInHKD'], ascending=False)[['Name','CurrentValueInHKD','PortfolioPct']].head(10)
     df = df.reset_index(drop=True)
     return df
 
@@ -166,11 +210,14 @@ def TopHoldings(ps):
 # Portfolio Summary, including uninvested cash balances
 def GetPortfolioSummaryIncCash():
     cash = setup.GetBankAndCashBalances()
-    ps_IncCash = ps.copy()
+    ps = GetPortfolioSummary()
+    ps_adjusted = ps['Adjusted']
+    ps_IncCash = ps_adjusted.copy()
     for i in range(len(cash)):
         row = cash.iloc[i]
         current_value_in_HKD = calc_fx.ConvertTo('HKD', row.Currency, row.Balance)
         dic = {'Platform':'Cash',
+               'AssetClass':'FX & cash',
                'Name':row.AccountName,
                'CurrentValue':row.Balance,
                'SecurityType':'FX & cash',
@@ -182,7 +229,8 @@ def GetPortfolioSummaryIncCash():
     return ps_IncCash
 
 
-# get calculations for other modules to use
-ps = GetPortfolioSummary()
-top_holdings = TopHoldings(ps)
-#pnl_unrealised = GetPnLUnrealised()
+# # get calculations for other modules to use
+# ps = GetPortfolioSummary()
+# ps_original = ps['Original']
+# ps_adjusted = ps['Adjusted']
+# top_holdings = TopHoldings(ps_original)

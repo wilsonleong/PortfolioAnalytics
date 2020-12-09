@@ -52,19 +52,28 @@ def main():
     #setup.InsertHistTransactions()
     
     # process historical market data
-    #mdata.ProcessHistoricalMarketData()
+    mdata.ProcessHistoricalMarketData()
+    
+    # # calculate Portfolio Summary (for the charts)
+    # ps = calc_summary.GetPortfolioSummary()
+    # ps_original = ps['Original']
+    # ps_adjusted = ps['Adjusted']
+    # top_holdings = TopHoldings(ps_original)
     
     # display visualisation
-    viz.DisplaySummary()
+    viz.DisplayPnL()
+    viz.DisplayPortfolioSummary()
     viz.DisplayReturnPct()
-    viz.PlotPortfolioComposition()
     viz.PlotCostvsVal(period='6M')
+    viz.PlotRealisedPnLOverTime(period='6M')
+    viz.PlotPortfolioComposition()
+    viz.PlotAssetAllocationCurrencyExposure()
+    viz.PlotPortfolioCompositionBy(by='SecurityType')
+    viz.PlotPortfolioCompositionBy(by='FundHouse')
+    viz.PlotTopHoldings()
     #viz.PlotCostvsVal(period='6M', platform='FSM HK')
     #viz.PlotCostvsVal(period='6M', platform='FSM SG') 
-    viz.PlotTopHoldings()
-    viz.PlotCurrecnyExposureAssetAllocation()
-    viz.PlotPortfolioCompositionBy(by='FundHouse')
-    viz.PlotRealisedPnLOverTime(period='6M')
+    
 
 
 if __name__ == "__main__":
