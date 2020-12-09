@@ -66,10 +66,15 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Historical cost vs valuation
 
 **viz.py**
-* Displays summary (PnL, returns %)
-* Historical cost vs valuation (supported instruments only: stocks, ETFs, some mutual funds)
-* Portfolio composition
-* Top holdings
+* Portfolio Performance (IRR) vs Benchmark (S&P 500)
+* Cost vs Latest Valuation
+* Realised PnL over time, breakdown by dividends & trading PnL
+* Portfolio Composition
+* Asset Allocation
+* Currency Exposure
+* Top Holdings
+* Product Type Breakdown
+* Holdings by Fund House
 
 **pad.py**
 * PAD reporting
