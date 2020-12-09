@@ -12,7 +12,7 @@
 ## Solution
 I built my own portfolio analytics tool that consolidates all my transactions across countries and brokers, connects to Yahoo Finance via API for historical market data (NAV and FX rates), handles the FX conversions, and produces the following output:
 1. consolidated investments with NAV, realised & unrealised PnL in a single currency
-2. calculates my portfolio IRR (internal rate of return) and benchmarks it vs S&P 500 over different date ranges
+2. calculates my portfolio IRR (internal rate of return) and benchmarks it against S&P 500 index returns over different date ranges
 3. displays consolidated investment cost vs valuation over time in a single currency
 4. displays consolidated PnL over time, break down by dividends and trading PnL
 5. displays composition of portfolio, asset allocation, currency exposure
