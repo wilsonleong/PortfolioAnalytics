@@ -42,6 +42,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Platform and securities referential
 * Transactions processing
 * Weighted average cost calculation (when selling)
+* Handling of uninvested cash balances
 
 **mdata.py**
 * Yahoo Finance API
@@ -65,6 +66,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Internal Rate of Return (money-weighted): suitable measurement for an individual investor (emphasizes on timing of in/out flows)
 * Yahoo Finance API (historical prices, FX rates)
 * Historical cost vs valuation
+* Calculates returns of benchmark (S&P 500)
 
 **viz.py**
 * Portfolio Performance (IRR) vs Benchmark (S&P 500)
