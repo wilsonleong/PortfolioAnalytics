@@ -23,15 +23,15 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Example output: https://github.com/wilsonleong/PortfolioAnalytics/wiki/Consolidated-Investment-Portfolio-Analytics
 * Project kanban: https://github.com/wilsonleong/PortfolioAnalytics/projects/1
 
-## Libraries used
-* numpy
-* scipy
-* pandas
-* datetime
-* dateutil
-* pymongo
-* matplotlib
-* yfinance
+## Libraries used (Python 3.7.6 64 bits)
+* numpy (1.19.1)
+* scipy (1.5.2)
+* pandas (1.0.0)
+* datetime 
+* dateutil (2.8.1)
+* pymongo (3.10.1)
+* matplotlib (3.3.1)
+* yfinance (0.1.54)
 
 ## Modules
 
