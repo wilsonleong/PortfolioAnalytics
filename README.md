@@ -23,7 +23,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Example output: https://github.com/wilsonleong/PortfolioAnalytics/wiki/Consolidated-Investment-Portfolio-Analytics
 * Project kanban: https://github.com/wilsonleong/PortfolioAnalytics/projects/1
 
-## Libraries used (Python 3.7.6 64 bits)
+## Libraries used (Python 3.7.6 - 64 bits)
 * numpy (1.19.1)
 * scipy (1.5.2)
 * pandas (1.0.0)
