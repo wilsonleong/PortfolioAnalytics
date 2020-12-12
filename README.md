@@ -64,7 +64,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 
 **calc_returns.py**
 * Modified Dietz Return (time-weighted): suitable measurement for a fund manager (emphasizes on overall trading decisions)
-* Internal Rate of Return (money-weighted): suitable measurement for an individual investor (emphasizes on timing of in/out flows)
+* Internal Rate of Return (money-weighted): suitable measurement for an individual investor (emphasizes on impacts of in/out flows)
 * Yahoo Finance API (historical prices, FX rates)
 * Historical cost vs valuation
 * Calculates returns of benchmark (S&P 500)
