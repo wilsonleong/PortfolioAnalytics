@@ -16,7 +16,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 3. displays consolidated investment cost vs valuation over time in a single currency
 4. displays consolidated PnL over time, break down by dividends and trading PnL
 5. displays composition of portfolio, asset allocation, currency exposure
-6. displays top holdings
+6. displays top holdings, their individual performance; and top gainers & losers
 7. automated PAD reporting
 
 ## URLs
