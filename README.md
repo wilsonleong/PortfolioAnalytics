@@ -84,3 +84,6 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * PAD reporting
 * Transactions list
 * Holdings summary (balance b/f and c/f)
+
+**util.py**
+* handling of date range periods
