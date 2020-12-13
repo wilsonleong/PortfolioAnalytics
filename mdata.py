@@ -55,6 +55,7 @@ def Ccypair2YFTicker(ccypair):
 # update the last NAV file with latest prices from Yahoo Finance
 def UpdateLastNAV():
     # reads the file, segregate the manual pricing source
+    print ('\nUpdating latest NAV - manual & Yahoo Finance API...')
     df = pd.read_excel(LastNavFilePath)
     df_manual = df[df.Ticker_YF.isnull()].copy()
     df_api = df[~df.Ticker_YF.isnull()].copy()
@@ -72,10 +73,12 @@ def UpdateLastNAV():
     df2 = df_manual.append(df_api)
     df2 = df2.reset_index(drop=True)
     df2.to_excel(LastNavFilePath, index=False)
+    print ('(updated latest NAV on XLSX)')
 
 
 # Collect historical market data from Yahoo Finance; fill values for closed markets; cache on DB
 def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
+    print ('\nProcessing historical market data...')
     tn = setup.GetAllTransactions()
     # filter by bbgcode and platform
     if bbgcode is not None:
@@ -101,7 +104,7 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
         yf_ticker = setup.GetYahooFinanceTicker(bbgcode)
         dates = setup.GetETFDataDateRanges(bbgcode)
         date_from = dates['DateFrom']
-        date_to = dates['DateTo']
+        date_to = dates['DateTo']       # this results in incorrect values for securites no longer held
         if date_from < start_date.date():
             date_from = start_date.date()
         df = df.append({'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}, ignore_index=True)
@@ -115,7 +118,7 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
         tmp['BBGCode'] = row.BBGCode
         data = data.append(tmp, ignore_index=False)
     
-    # NEED TO DEAL WITH HK/US HOLIDAYS MISMATCH
+    # NEED TO DEAL WITH HK/US HOLIDAYS MISMATCH - this process is also adding incorrect values for securities no longer held
     tmp = data.pivot('Date','BBGCode', values='Close')
     tmp = tmp.fillna(method='ffill')
     tmp = tmp.reset_index()
@@ -133,6 +136,7 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
     # insert rows into the db
     coll.insert_many(tmp2.to_dict('records'))
     #return tmp2
+    print ('(updated %s records on MongoDB)' % len(tmp2))
 
 
 # get historical NAV from cache (MongoDB)
@@ -150,6 +154,7 @@ def GetHistoricalData(bbgcode=None, start_date=None):
 
 # Collect USDHKD historical rates and cache on DB
 def ProcessHistoricalUSDHKD():
+    print ('\nProcessing historical USDHKD rates...')
     # collect from Yahoo Finance
     usdhkd = pdr.get_data_yahoo('HKD=X', start='2015-07-01', end=datetime.datetime.today())
     usdhkd = usdhkd[['Close']]
@@ -161,6 +166,7 @@ def ProcessHistoricalUSDHKD():
     coll = db['USDHKD']
     coll.delete_many({})
     coll.insert_many(usdhkd.to_dict('records'))
+    print ('(updated %s records on MongoDB)' % len(usdhkd))
 
 
 # Get historical USDHKD from cache (MongoDB)
@@ -171,3 +177,28 @@ def GetHistoricalUSDHKD():
     df.drop(['_id'], axis=1, inplace=True)
     return df
 
+
+# Collect USDHKD historical rates and cache on DB
+def ProcessHistoricalSPX():
+    print ('\nProcessing historical S&P 500 prices...')
+    # collect from Yahoo Finance
+    spx = pdr.get_data_yahoo('^GSPC', start='2015-07-01', end=datetime.datetime.today())
+    spx = spx[['Close']]
+    spx.columns = ['SPX']
+    spx = spx.reset_index()
+    
+    # store on DB
+    db = setup.ConnectToMongoDB()
+    coll = db['SPX']
+    coll.delete_many({})
+    coll.insert_many(spx.to_dict('records'))
+    print ('(updated %s records on MongoDB)' % len(spx))
+
+
+# Get historical SPX from cache (mongodb)
+def GetHistoricalSPX():
+    db = setup.ConnectToMongoDB()
+    coll = db['SPX']
+    df = pd.DataFrame(list(coll.find()))
+    df.drop(['_id'], axis=1, inplace=True)
+    return df

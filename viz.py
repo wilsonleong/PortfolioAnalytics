@@ -24,10 +24,12 @@ import matplotlib as mpl
 import matplotlib.dates as mdates
 import matplotlib.colors as mcolors
 
+import setup
 import calc_summary
 import calc_returns
 import calc_fx
 import util
+import mdata
 _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots'
 
 
@@ -55,12 +57,11 @@ def DisplayPnL():
 # display portfolio summary
 def DisplayPortfolioSummary():
     # Portfolio composition report
-    pcr = calc_summary.GetPortfolioSummary()
-    pcr = pcr['Original']
-    #pcr = calc_summary.ps_original.copy()
+    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Original')
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
+    total2 = calc_fx.ConvertTo('USD','HKD',total)
 
     print ('\nTotal investments (exc. cash) by category in HKD equivalent:')
     for i in range(len(pct)):
@@ -70,10 +71,11 @@ def DisplayPortfolioSummary():
         value = row.CurrentValueInHKD
         pc = '%s' % '{:,.2f}'.format(value / total * 100) + '%'
         print ('%s \t %s' % (cat_withspace, pc))
-    print ('Total investments: %s HKD' % '{:,.0f}'.format(total))
+    print ('Total investments: %s HKD | %s USD' % ('{:,.0f}'.format(total), 
+                                                   '{:,.0f}'.format(total2)))
 
     # calculate the equivalent in other currencies
-    ps_inc_cash = calc_summary.GetPortfolioSummaryIncCash()
+    ps_inc_cash = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
     total_inc_cash = ps_inc_cash.CurrentValueInHKD.sum()
     total_USD = calc_fx.ConvertTo('USD','HKD',total_inc_cash)
     total_EUR = calc_fx.ConvertTo('EUR','HKD',total_inc_cash)
@@ -81,38 +83,56 @@ def DisplayPortfolioSummary():
     total_SGD = calc_fx.ConvertTo('SGD','HKD',total_inc_cash)
     
     print ('\nTotal portfolio value including cash:')
-    print ('> %s HKD' % '{:,.0f}'.format(total_inc_cash))
-    print ('> %s USD' % '{:,.0f}'.format(total_USD))
-    print ('> %s EUR' % '{:,.0f}'.format(total_EUR))
-    print ('> %s GBP' % '{:,.0f}'.format(total_GBP))
-    print ('> %s SGD' % '{:,.0f}'.format(total_SGD))
-    # print annualised returns on FSM HK & SG accounts
-    ar_fsmhk = calc_returns.CalcModDietzReturn('FSM HK')
-    ar_fsmsg = calc_returns.CalcModDietzReturn('FSM SG')
-    print ('')
-    print ('Annualised returns from inception (time-weighted):')
-    print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
-    print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
-    print ('')
+    print ('>> %s HKD' % '{:,.0f}'.format(total_inc_cash))
+    print ('or %s USD' % '{:,.0f}'.format(total_USD))
+    print ('or %s EUR' % '{:,.0f}'.format(total_EUR))
+    print ('or %s GBP' % '{:,.0f}'.format(total_GBP))
+    print ('or %s SGD' % '{:,.0f}'.format(total_SGD))
+    
+    # # print annualised returns on FSM HK & SG accounts
+    # ar_fsmhk = calc_returns.CalcModDietzReturn('FSM HK')
+    # ar_fsmsg = calc_returns.CalcModDietzReturn('FSM SG')
+    # print ('')
+    # print ('Annualised returns from inception (time-weighted):')
+    # print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
+    # print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
+    # print ('')
 
 
 # display return %
 def DisplayReturnPct():    
     # IRR
     date_ranges = util.date_ranges
-    # get the IRR for the date ranges
-    returns = {}
-    for i in range(len(date_ranges)):
-        returns[date_ranges[i]] = calc_returns.CalcIRR(period=date_ranges[i])
-
-    # get the IRR % only
-    returns_irr = {}
-    for i in range(len(date_ranges)):
-        returns_irr[date_ranges[i]] = returns[date_ranges[i]]['IRR']
     
-    print ('Performance of Yahoo Finance supported instruments (money-weighted):')
+    # # get the IRR for the date ranges
+    # returns = {}
+    # for i in range(len(date_ranges)):
+    #     returns[date_ranges[i]] = calc_returns.CalcIRR(period=date_ranges[i])
+
+    # # get the IRR % only
+    # returns_irr = {}
+    # for i in range(len(date_ranges)):
+    #     returns_irr[date_ranges[i]] = returns[date_ranges[i]]['IRR']
+    
+    # get IRR from cache (DB)
+    returns_irr = calc_returns.GetIRRFromDB()
+    returns_irr = returns_irr[(returns_irr.Platform.isnull()) & (returns_irr.BBGCode.isnull())]
+    #returns_irr = returns_irr[['Period','IRR']]
+    #returns_irr.set_index('Period', inplace=True)
+    dic = {}
+    for i in range(len(returns_irr)):
+        dic[returns_irr.loc[i,'Period']] = returns_irr.loc[i,'IRR']
+    returns_irr = dic
+    
+    supported_instruments = setup.GetListOfSupportedInstruments()
+    ps = calc_summary.GetPortfolioSummaryFromDB()
+    ps_supported_instruments = ps[ps.BBGCode.isin(supported_instruments)]
+    print ('\nPerformance of Yahoo Finance supported instruments (%s of total):' % '{:,.2%}'.format(ps_supported_instruments.CurrentValueInHKD.sum()/ps.CurrentValueInHKD.sum()))
     for i in range(len(returns_irr)):
         print ('> %s: \t\t' % list(returns_irr.keys())[i] + '{:,.2%}'.format(list(returns_irr.values())[i]))
+        #row = returns_irr.iloc[i]
+        #print ('> %s: \t\t' % row.Period + '{:,.2%}'.format(row.IRR))
+    print ('Total value of supported instruments: %s HKD' % ('{:,.0f}'.format(ps_supported_instruments.CurrentValueInHKD.sum())))
     print ('')
 
     # plot the returns on a bar chart
@@ -123,6 +143,12 @@ def DisplayReturnPct():
     # get SPX returns as benchmark
     spx = calc_returns.GetSPXReturns()
     #spx_returns = np.array(spx.Returns)
+    
+    has_negative_values = False
+    if len(spx[spx.AnnualisedReturn < 0]) > 0:
+        has_negative_values = True
+    if np.sum(values < 0):
+        has_negative_values = True
 
     # compare porfolio returns vs SPX (YTD)
     YTD_spx_diff = returns_irr['YTD'] - spx.loc['YTD','AnnualisedReturn']
@@ -169,7 +195,7 @@ def DisplayReturnPct():
             textcoords='offset points', 
             color=annotate_colour,
             #weight='bold',
-            fontsize=8, ha='center',
+            fontsize=7, ha='center',
             arrowprops=dict(arrowstyle='-|>', color=annotate_colour)
             )
 
@@ -179,7 +205,7 @@ def DisplayReturnPct():
             xytext=(0, 25),
             textcoords='offset points', 
             color=annotate_colour2,
-            fontsize=8, ha='center',
+            fontsize=7, ha='center',
             arrowprops=dict(arrowstyle='-|>', color=annotate_colour2)
             )
 
@@ -187,18 +213,20 @@ def DisplayReturnPct():
     ax.set_ylabel('Performance % (>1Y annualised)')
     ax.set_xlabel('Date Range')
     #ax.set_ylabel('Annualised Return % for date range above 1Y')
-    title = 'Portfolio Performance (IRR) - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    title = 'Portfolio Returns vs S&P 500 - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
     vals = ax.get_yticks()
     ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
     # this is bugged when there is negative value
     # for ymaj in ax.yaxis.get_majorticklocs():
     #     ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
+    if has_negative_values:
+        ax.axhline(y=0, ls='-', lw=0.25, color='black')
 
     # save output as PNG
     output_filename = 'PortfolioPerformance.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
-    plt.legend()
+    ax.legend(loc='upper right', bbox_to_anchor=(1,-0.1))
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
@@ -206,9 +234,7 @@ def DisplayReturnPct():
 # plot chart: portfolio composition
 def PlotPortfolioComposition():
     # prepare data
-    pcr = calc_summary.GetPortfolioSummary()
-    pcr = pcr['Original']
-    #pcr = calc_summary.ps_original.copy()
+    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Original')
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
 
@@ -239,7 +265,7 @@ def PlotPortfolioComposition():
     for i in range(len(labels)):
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-40)
+    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-60)
     #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
@@ -250,12 +276,21 @@ def PlotPortfolioComposition():
         horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
         connectionstyle = "angle,angleA=0,angleB={}".format(ang)
         kw["arrowprops"].update({"connectionstyle": connectionstyle})
-        #ax.annotate(labels_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),
-        #            horizontalalignment=horizontalalignment, **kw, fontsize=7)
+        ax.annotate('{:,.2%}'.format(sizes[i]),
+                    xy=(x, y), 
+                    xytext=(1*np.sign(x), 1.1*y),
+                    horizontalalignment=horizontalalignment, 
+                    **kw, 
+                    fontsize=7)
     ax.set_title(title)
-    #plt.legend(wedges, labels_with_pct, loc='center', bbox_to_anchor=(-0.1, 1.), fontsize=8)
-    plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
-    
+    plt.legend(wedges,
+               labels_with_pct,
+               loc='upper center',
+               bbox_to_anchor=(0.5, -0.05),
+               ncol=3,
+               fontsize=8)
+    #plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
+
     # save output as PNG
     output_filename = 'PortfolioComposition.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
@@ -266,7 +301,8 @@ def PlotPortfolioComposition():
 # 2020-12-02: plot donut chart by security currency
 def PlotAssetAllocationCurrencyExposure():
     # get the data
-    pcr = calc_summary.GetPortfolioSummaryIncCash()
+    #pcr = calc_summary.GetPortfolioSummaryIncCash()
+    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
     
     # prepare the titles
     by1 = 'AssetClass'
@@ -345,21 +381,21 @@ def PlotAssetAllocationCurrencyExposure():
 
 
 # # 2020-12-02: plot donut chart for portfolio composition
-def PlotPortfolioCompositionBy(by='SecurityCcy'):
+def PlotPortfolioCompositionBy(by='SecurityType'):
     #by='SecurityType'
-    if by=='SecurityCcy':
+    if by=='SecurityCcy': # NOT IN USE
         title = 'Currency Exposure'
     elif by=='SecurityType':
         title = 'Product Type Breakdown'
-    elif by=='AssetClass':
+    elif by=='AssetClass': # NOT IN USE
         title = 'Asset Class Breakdown'
     if by=='FundHouse':
         title = 'Holdings by Fund House'
     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
-    pcr = calc_summary.GetPortfolioSummary()
-    pcr = pcr['Adjusted']
-    #pcr = calc_summary.ps_adjusted.copy()
+    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Adjusted')
+    #pcr = calc_summary.GetPortfolioSummary()
+    #pcr = pcr['Adjusted']
     pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
@@ -371,7 +407,7 @@ def PlotPortfolioCompositionBy(by='SecurityCcy'):
     for i in range(len(categories)):
         categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=-40)
+    wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=0)
     #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
@@ -398,7 +434,6 @@ def PlotCostvsVal(period='6M', platform=None):
     #period,platform='6M','FSM SG'
     # collect the data
     hist_cost = calc_returns.CalcPortfolioHistoricalCost(platform=platform)
-    #hist_valuation = calc_returns.hist_valuation
     hist_valuation = calc_returns.CalcPortfolioHistoricalValuation(platform=platform)
     
     df = hist_valuation.merge(hist_cost, how='left', on='Date')
@@ -412,7 +447,12 @@ def PlotCostvsVal(period='6M', platform=None):
         df = df.reset_index(drop=True)
 
     # get the IRR performance % for the chart title
-    ar_etf = calc_returns.CalcIRR(period=period, platform=platform)
+    #ar_etf = calc_returns.CalcIRR(period=period, platform=platform)
+    returns = calc_returns.GetIRRFromDB()
+    ar_etf = {
+        'Period':period,
+        'IRR': returns[returns.Period==period].IRR.iloc[0]
+        }
 
     # create the plots
     fig, ax = plt.subplots()    # can set dpi=150 or 200 for bigger image; figsize=(8,6)
@@ -573,65 +613,214 @@ def PlotRealisedPnLOverTime(period='6M'):
     plt.show()
 
 
-# XY plot with bubbles of PnL, PnL%, Portfolio % as size (IRR won't work because I don't hold funds long enough)
-def PlotXYBubbles(period='6M'):
-    # get the data
-    ps = calc_summary.GetPortfolioSummary()
-    ps = ps['Original']
-    #ps = calc_summary.ps_original.copy()
-    ps = ps[ps.NoOfUnits!=0]
+# # XY plot with bubbles of PnL, PnL%, Portfolio % as size (IRR won't work because I don't hold funds long enough)
+# def PlotXYBubbles(period='1M'):
+#     # get the data
+#     ps = calc_summary.GetPortfolioSummaryFromDB('Original')
+#     ps = ps[ps.NoOfUnits!=0]
 
-    # # filter by supported instruments with market data
-    # ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
-    # ps.reset_index(inplace=True)
-    # # calc IRR for holdings
-    # for i in range(len(ps)):
-    #     row = ps.iloc[i]
-    #     IRR = calc_returns.CalcIRR(platform=row.Platform,
-    #                                            bbgcode=row.BBGCode,
-    #                                            period=period)
-    #     ps.loc[i,'IRR'] = IRR['IRR']
+#     # # filter by supported instruments with market data (too many newly bought are NA)
+#     # ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
+#     # ps.reset_index(inplace=True)
+#     # # calc IRR for holdings
+#     # for i in range(len(ps)):
+#     #     row = ps.iloc[i]
+#     #     IRR = calc_returns.CalcIRR(platform=row.Platform,
+#     #                                             bbgcode=row.BBGCode,
+#     #                                             period=period)
+#     #     ps.loc[i,'IRR'] = IRR['IRR']
     
-    # group by category (need to recalc in HKD)
-    ps2 = ps.groupby(['Category']).agg({'CostInHKD':'sum',
-                                        'PnLInHKD':'sum',
-                                        'CurrentValueInHKD':'sum'})
-    # calculate PnL % (after grouped - need all in HKD)
-    ps2.loc[:,'PnLPct'] = ps2.loc[:,'PnLInHKD'] / ps2.loc[:,'CostInHKD']
-    ps2.loc[:,'PtfPct'] = ps2.loc[:,'CurrentValueInHKD'] / ps2.CurrentValueInHKD.sum()
+#     # chart data
+#     x = list(ps.PnLInHKD)
+#     y = list(ps.PnLPct)
+#     size = ps.PortfolioPct*1000
+#     color = list(mcolors.TABLEAU_COLORS)[:len(x)]
+#     labels = list(ps.Name)
     
-    # chart data
-    x = ps2.PnLInHKD
-    y = ps2.PnLPct
-    size = ps2.PtfPct*1000
-    color = list(mcolors.TABLEAU_COLORS)[:len(x)]
-    labels = ps2.index
+#     # assign colour to Category
+#     cats = list(ps.Category.unique())
+#     cats_colour = {cats[i]: color[i] for i in range(len(cats))} 
+#     ps['CategoryColour'] = ps.Category.map(cats_colour)
+
+#     # plot the chart
+#     fig, ax = plt.subplots()
+    
+#     scatter = ax.scatter(x, y, s=size, c=ps.CategoryColour, alpha=0.5)
+    
+#     # draw lines on the axis
+#     ax.axhline(y=0, xmin=0, xmax=1, color='black', lw=0.5)
+#     ax.axvline(x=0, ymin=0, ymax=1, color='black', lw=0.5)
+    
+#     # add labels to points
+#     for i, txt in enumerate(labels):
+#         ax.annotate(txt, 
+#                     (x[i], y[i]),
+#                     xytext=(10,0),
+#                     textcoords='offset points', color='gray', fontsize=8
+#                     )
+    
+#     title = 'Scatter Plot of Investments - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+#     ax.set_title(title)
+#     ax.xaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
+#     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.2f}'))
+#     plt.xlabel('Unrealised PnL (HKD)', size=10)
+#     plt.ylabel('Unrealised PnL %', size=10)
+#     #ax.legend(title='Category', frameon=True, loc='best', ncol=1, bbox_to_anchor=(1,1))
+    
+#     # save output as PNG
+#     output_filename = 'ScatterPlotOfInvestments.png'
+#     output_fullpath = '%s/%s' % (_output_dir, output_filename)
+#     fig.savefig(output_fullpath, format='png', dpi=300, bbox_inches='tight')
+#     plt.show()
+
+
+# plot performance of holdings over time
+def PlotPerformanceOfHoldings(period='3M'):
+    # get the start date
+    start_date = util.GetStartDate(period)
+    
+    # get the list of instruments
+    ps = calc_summary.GetPortfolioSummaryFromDB()
+    ps = ps[ps.NoOfUnits>0]
+    ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
+    top10tickers = list(ps.sort_values('CurrentValueInHKD', ascending=False).head(10).BBGCode)
+    
+    # get the historical market data
+    hp = mdata.GetHistoricalData()
+    hp = hp[hp.BBGCode.isin(top10tickers)]
+    hp = hp[hp.Date>=start_date]
     
     # plot the chart
+    title = 'Top Holdings Performance (%s)' % period
+    title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     fig, ax = plt.subplots()
+    ax.set_ylabel('Price Index')
+    ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
     
-    ax.scatter(x, y, s=size, c=color, alpha=0.5)
-    ax.axhline(y=0, xmin=0, xmax=1, color='black', lw=0.5)
-    ax.axvline(x=0, ymin=0, ymax=1, color='black', lw=0.5)
+    # plot the cost
+    for i in range(len(top10tickers)):
+        tmp = hp[hp.BBGCode==top10tickers[i]].copy()
+        base = tmp.Close.iloc[0]
+        tmp.loc[:,'AdjustedIndex'] = tmp.loc[:,'Close'] / base * 100
+        label = tmp.BBGCode.iloc[0]
+        x = tmp.Date
+        y = tmp.AdjustedIndex
+        colour = list(mcolors.TABLEAU_COLORS.keys())[i]
+        ax.plot(x, y, linestyle='-', label=label,color=colour)
     
-    # add labels to points
-    for i, txt in enumerate(labels):
-        ax.annotate(txt, 
-                    (x[i], y[i]),
-                    xytext=(10,0),
-                    textcoords='offset points', color='gray'
-                    )
-    
-    title = 'Scatter Plot of Investments - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    # add legend and other formatting
+    ax.legend(title='Bloomberg ticker', frameon=True, loc='best', ncol=1, bbox_to_anchor=(1,1))
+    plt.xticks(rotation=45, ha='right')
     ax.set_title(title)
-    ax.xaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
-    ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.2f}'))
-    plt.xlabel('Unrealised PnL (HKD)', size=10)
-    plt.ylabel('Unrealised PnL %', size=10)
+    ax.axhline(y=100, xmin=0, xmax=1, color='black', lw=0.5)
     
     # save output as PNG
-    output_filename = 'ScatterPlotOfInvestments.png'
+    output_filename = 'TopHoldingsPerformance.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
     fig.savefig(output_fullpath, format='png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+
+# plot Leaders & Laggers (accurate for overnight; longer date range assumes no buying/selling)
+def PlotLeadersAndLaggers(period=None):
+    # get market data
+    hp = mdata.GetHistoricalData()
+    
+    # filter by existing holdings
+    ps = calc_summary.GetPortfolioSummaryFromDB('Original')
+    ps = ps[ps.NoOfUnits>0]
+    ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
+    
+    tickers = list(ps.BBGCode)
+    
+    # create a table to store the league table
+    df = pd.DataFrame(tickers, columns=['BBGCode'])
+    
+    # calculate percentage change based on period
+    def _CalculatePctChg(bbgcode, period=None):
+        md = hp[hp.BBGCode==bbgcode].copy()
+        if period is None:
+            md = md.tail(2)
+            
+        else:
+            start_date = util.GetStartDate(period)
+            md = md[~(md.Date<start_date)]
+        pct_chg = md.Close.iloc[-1] / md.Close.iloc[0] - 1
+        return pct_chg
+    
+    # apply the calculation
+    for i in range(len(df)):
+        df.loc[i,'PctChg'] = _CalculatePctChg(df.BBGCode.iloc[i], period)
+    
+    # get existing holdings and calculate amount change
+    df = df.merge(ps[['BBGCode','Name','CurrentValueInHKD']], how='left', on='BBGCode')
+    df['AmountChgInHKD'] = df.CurrentValueInHKD - (df.CurrentValueInHKD / (1+df.PctChg))
+    df = df[df.PctChg!=0]
+    leaders = df.sort_values(['AmountChgInHKD'], ascending=False)#.head(5)
+    leaders = leaders[leaders.PctChg>0]
+    leaders.reset_index(inplace=True)
+    laggers = df.sort_values(['AmountChgInHKD'], ascending=True)#.head(5)
+    laggers = laggers[laggers.PctChg<0]
+    laggers.reset_index(inplace=True)
+
+
+    # plot the charts
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10,4))
+    plt.rcdefaults()
+    
+    # Top 5 gainers
+    labels1 = leaders.BBGCode
+    sizes1 = leaders.AmountChgInHKD
+    y_pos1 = np.arange(len(labels1))
+    ax1.set_yticks(y_pos1)
+    ax1.set_yticklabels(labels1)
+    ax1.barh(y_pos1, sizes1, color='tab:green')
+    vals1 = ax1.get_xticks()
+    ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals1])
+    ax1.set_xlabel('Gains (HKD)')
+    title1 = 'Top gainers (+%s HKD)' % '{:,.0f}'.format(sum(sizes1))
+    # add labels
+    for i in range(len(sizes1)):
+        ax1.text(x=sizes1[i],
+                 y=y_pos1[i],
+                 s=str('+'+'{:,.2%}'.format(leaders.PctChg.iloc[i])),
+                 color='tab:green')
+    ax1.set(title=title1)
+    ax1.invert_yaxis()
+    
+
+    # Top 5 losers
+    labels2 = laggers.BBGCode
+    sizes2 = laggers.AmountChgInHKD*-1
+    y_pos2 = np.arange(len(labels2))
+    ax2.set_yticks(y_pos2)
+    ax2.set_yticklabels(labels2)
+    ax2.barh(y_pos2, sizes2, color='tab:red')
+    vals2 = ax2.get_xticks()
+    ax2.set_xticklabels(['{:,.0f}'.format(x) for x in vals2])
+    ax2.set_xlabel('Losses (HKD)')
+    title2 = 'Top losers (%s HKD)' % '{:,.0f}'.format(sum(sizes2)*-1)
+    # add labels
+    for i in range(len(sizes2)):
+        ax2.text(x=sizes2[i],
+                 y=y_pos2[i],
+                 s=str('{:,.2%}'.format(laggers.PctChg.iloc[i])),
+                 color='tab:red')
+    ax2.set(title=title2)
+    ax2.invert_yaxis()
+
+    #plt.gca().invert_yaxis()
+    if period is None:
+        dr = 'overnight'
+    else:
+        dr = period
+    title = 'Gainers and Losers (%s) - %s' % (dr, datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    plt.suptitle(title, fontsize=12)
+    plt.subplots_adjust(top=0.85, wspace=0.4)
+
+    # save output as PNG
+    output_filename = 'GainersAndLosers.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 

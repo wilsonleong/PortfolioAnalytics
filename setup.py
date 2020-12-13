@@ -250,18 +250,20 @@ def InitialSetup():
         InsertSecurity(db, bbgcode, assetclass, assettype, category, name, ccy, fxcode, multiplier, fm, yf_ticker)
 
 
-def InsertHistTransactions():
+# insert transactions from start date (removes anything from start date first)
+def InsertHistTransactions(start_date=datetime.datetime(2020,12,1)):
     print ('\nImporting historical transactions...')
     # connect to mongodb
     db = ConnectToMongoDB()
     
     # clear all previous transactions
-    db['Transactions'].delete_many({})
+    db['Transactions'].delete_many({'Date': {'$gte': start_date}})
 
     # load historical transactions
     transfile = _setupfile
     t = pd.read_excel(transfile, sheet_name='Transactions')
     t.drop(['SecurityName'], axis=1, inplace=True)
+    t = t[t.Date>=start_date]
 
     ns = 1e-9
     for i in range(len(t)):

@@ -37,30 +37,35 @@ timer_start = datetime.datetime.now()
 import setup
 import viz
 import mdata
+import calc_summary
+import calc_returns
 
 
 def main():
-    # refresh market data
+    # 1) Setup: update platform and security referential, cash balances -> cache on DB
+    setup.InitialSetup()  # initial setup and other hardcoded transactions (exc import from FSM SG)
+    
+    # 2) Setup: process new transactions
+    setup.InsertHistTransactions(datetime.datetime(2020,12,1))
+    
+    # 3) Market data: collect the latest (including intra-day) NAV of supported stocks, ETFs and mutual funds with existing holdings -> cache on DB
     mdata.UpdateLastNAV()
-    mdata.ProcessHistoricalUSDHKD()
-
-    # update latest FX
+    
+    # 4) Market data: collect the latest (including intra-day) FX rates -> cache on DB
     setup.UpdateLatestFXrates()
     
-    # one-off first time setup
-    setup.InitialSetup()  # initial setup and other hardcoded transactions (exc import from FSM SG)
-    #setup.InsertHistTransactions()
+    # 5) Market data: collect historical EOD USDHKD exchange rates -> cache on DB
+    mdata.ProcessHistoricalUSDHKD()
     
-    # process historical market data
+    # 6) Market data: collect historical EOD market data of supported stocks, ETFs and mutual funds including those already sold -> cache on DB
     mdata.ProcessHistoricalMarketData()
+    mdata.ProcessHistoricalSPX()
     
-    # # calculate Portfolio Summary (for the charts)
-    # ps = calc_summary.GetPortfolioSummary()
-    # ps_original = ps['Original']
-    # ps_adjusted = ps['Adjusted']
-    # top_holdings = TopHoldings(ps_original)
-    
-    # display visualisation
+    # 7) Calculations: compute portfolio summary and IRR%s -> cache on DB
+    calc_summary.CalcPortfolioSummaryAndCacheOnDB()
+    calc_returns.CalcIRRAndCacheOnDB()
+
+    # 8) Visualisations: load cached data from DB and plot various charts
     viz.DisplayPnL()
     viz.DisplayPortfolioSummary()
     viz.DisplayReturnPct()
@@ -71,9 +76,8 @@ def main():
     viz.PlotPortfolioCompositionBy(by='SecurityType')
     viz.PlotPortfolioCompositionBy(by='FundHouse')
     viz.PlotTopHoldings()
-    #viz.PlotCostvsVal(period='6M', platform='FSM HK')
-    #viz.PlotCostvsVal(period='6M', platform='FSM SG') 
-    
+    viz.PlotPerformanceOfHoldings(period='3M')
+    viz.PlotLeadersAndLaggers()
 
 
 if __name__ == "__main__":

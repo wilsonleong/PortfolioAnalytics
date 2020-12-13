@@ -555,8 +555,53 @@ def GetSPXReturns():
     return df
 
 
-# get the returns of each supported instruments
-#setup.GetListOfSupportedInstruments()
+# calculate IRR and cache on DB
+def CalcIRRAndCacheOnDB():
+    print ('\nCalculating IRR - this may take a few mins...')
+    # DB table
+    db = setup.ConnectToMongoDB()
+    coll = db['PortfolioPerformance']
+    
+    # get the date ranges for computation
+    date_ranges = util.date_ranges
+    
+    # compute the returns
+    returns = {}
+    for i in range(len(date_ranges)):
+        returns[date_ranges[i]] = CalcIRR(period=date_ranges[i])
+        # prepare the record to append to DB
+        rec = {
+            'Platform': None,
+            'BBGCode': None,
+            'Period': date_ranges[i],
+            'IRR': returns[date_ranges[i]]['IRR'],
+            'StartDate': returns[date_ranges[i]]['StartDate'],
+            'EndDate': returns[date_ranges[i]]['EndDate'],
+            'StartCashflow': returns[date_ranges[i]]['InitialCashflow'],
+            'EndCashflow': returns[date_ranges[i]]['FinalCashflow'],
+            'LastUpdated': datetime.datetime.now()
+            }
+        # remove previous record
+        coll.delete_many({
+            'Platform': None,
+            'BBGCode': None,
+            'Period': date_ranges[i]
+            })
+        
+        # append the record
+        coll.insert_one(rec)
+    print ('(completed and cached on DB)')
 
 
+# get the calculated IRR on DB
+def GetIRRFromDB():
+    db = setup.ConnectToMongoDB()
+    coll = db['PortfolioPerformance']
+    df = pd.DataFrame(list(coll.find({
+        'Platform':None,
+        'BBGCode':None
+        })))
+    df.drop(columns=['_id'], inplace=True)
+    return df
+    
 

@@ -191,9 +191,9 @@ def GetPnLUnrealised():
 
 # return the top holdings in the portfolio
 def TopHoldings():
-    #df = portfolio_summary.copy()
-    df = GetPortfolioSummary()
-    df = df['Original']
+    #df = GetPortfolioSummary()
+    #df = df['Original']
+    df = GetPortfolioSummaryFromDB(summary_type='Original')
     # # need to convert all to HKD first
     # for i in range(len(df)):
     #     row = df.iloc[i]
@@ -202,7 +202,7 @@ def TopHoldings():
     #     else:
     #         df.loc[i, 'CurrentValueHKD'] = calc_fx.ConvertTo('HKD', df.loc[i, 'PlatformCurrency'], df.loc[i, 'CurrentValue'])
     df.loc[:,'PortfolioPct'] = df.loc[:,'CurrentValueInHKD'] / df.CurrentValueInHKD.sum()
-    df = df.sort_values(['CurrentValueInHKD'], ascending=False)[['Name','CurrentValueInHKD','PortfolioPct']].head(10)
+    df = df.sort_values(['CurrentValueInHKD'], ascending=False)[['BBGCode','Name','CurrentValueInHKD','PortfolioPct']].head(10)
     df = df.reset_index(drop=True)
     return df
 
@@ -226,11 +226,48 @@ def GetPortfolioSummaryIncCash():
                'Category':row.Category
                }
         ps_IncCash = ps_IncCash.append(dic, ignore_index=True)
+    ps_IncCash.loc[:,'PortfolioPct'] = ps_IncCash.loc[:,'CurrentValueInHKD'] / ps_IncCash.CurrentValueInHKD.sum()
     return ps_IncCash
 
 
-# # get calculations for other modules to use
-# ps = GetPortfolioSummary()
-# ps_original = ps['Original']
-# ps_adjusted = ps['Adjusted']
-# top_holdings = TopHoldings(ps_original)
+# calculate portfolio summary and cache on DB
+def CalcPortfolioSummaryAndCacheOnDB():
+    # DB
+    db = setup.ConnectToMongoDB()
+    coll = db['PortfolioSummary']
+    
+    # Get calculations
+    ps = GetPortfolioSummary()
+    ps_original = ps['Original']
+    ps_adjusted = ps['Adjusted']
+    ps_adjustedIncCash = GetPortfolioSummaryIncCash() # inc cash is adjusted
+    
+    # fill blanks
+    ps_adjusted['PortfolioPct'] = None
+    
+    # add summary type
+    ps_original['SummaryType'] = 'Original'
+    ps_adjusted['SummaryType'] = 'Adjusted'
+    ps_adjustedIncCash['SummaryType'] = 'AdjustedIncCash'
+
+    # cache on DB
+    coll.delete_many({'SummaryType':'Original'})
+    coll.insert_many(ps_original.to_dict('records'))    
+    
+    coll.delete_many({'SummaryType':'Adjusted'})
+    coll.insert_many(ps_adjusted.to_dict('records'))    
+    
+    coll.delete_many({'SummaryType':'AdjustedIncCash'})
+    coll.insert_many(ps_adjustedIncCash.to_dict('records')) 
+
+
+# get portfolio summary from cache (DB)
+def GetPortfolioSummaryFromDB(summary_type='Original'):
+    db = setup.ConnectToMongoDB()
+    coll = db['PortfolioSummary']
+    
+    df = pd.DataFrame(list(coll.find({
+        'SummaryType':summary_type
+        })))
+    df.drop(columns=['_id'], inplace=True)
+    return df
