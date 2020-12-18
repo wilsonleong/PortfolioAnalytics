@@ -188,6 +188,7 @@ def InsertTransaction(db,
         print ('(Transaction added: %s | %s: %s)' % (Date, "{:,.2f}".format(CostInPlatformCcy), BBGCode))
 
 
+# update the latest FX rates, then cache on DB
 def UpdateLatestFXrates():
     # get the list of ccypairs
     print ('\nCollecting latest FX rates from Yahoo Finance...')
@@ -212,6 +213,23 @@ def UpdateLatestFXrates():
     coll.delete_many({})
     coll.insert_many(df.to_dict('records'))
     print ('(updated latest FX rates on mongodb)')
+
+
+# added 16 Dec 2020: process the latest XAUHKD rate, then cache on DB
+def UpdateLatestBullionRates():
+    print ('\nCollecting latest XAU to HKD rate from Yahoo Finance...')
+    # calculate XAUHKD rate based on Gold future price (spot price not available) and USDHKD
+    xauusd = mdata.GetLatestPrice('GC=F')['last_price']
+    usdhkd = mdata.GetLatestPrice('HKD=X')['last_price']
+    xauhkd = xauusd * usdhkd
+    
+    # clear previous entry on mongodb and add new one back
+    db = ConnectToMongoDB()
+    coll = db['FX']
+    coll.delete_one({'Ccypair':'XAUHKD'})
+    entry = {'Ccypair':'XAUHKD', 'PX_LAST':xauhkd, 'LastUpdated':datetime.datetime.now()}
+    coll.insert_one(entry)
+    print ('(updated latest XAUHKD rate on mongodb)')
 
 
 def InitialSetup():

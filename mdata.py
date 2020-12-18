@@ -118,6 +118,10 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
         tmp['BBGCode'] = row.BBGCode
         data = data.append(tmp, ignore_index=False)
     
+    # added 15 Dec 2020: Yahoo Finance null rows?
+    data = data[~data.Close.isnull()]
+    data.drop_duplicates(['BBGCode','Date'], inplace=True)
+    
     # NEED TO DEAL WITH HK/US HOLIDAYS MISMATCH - this process is also adding incorrect values for securities no longer held
     tmp = data.pivot('Date','BBGCode', values='Close')
     tmp = tmp.fillna(method='ffill')

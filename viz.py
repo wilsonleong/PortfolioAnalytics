@@ -63,15 +63,15 @@ def DisplayPortfolioSummary():
     total = pct.CurrentValueInHKD.sum()
     total2 = calc_fx.ConvertTo('USD','HKD',total)
 
-    print ('\nTotal investments (exc. cash) by category in HKD equivalent:')
-    for i in range(len(pct)):
-        row = pct.iloc[i]
-        cat = row.Category
-        cat_withspace = cat + ' ' * (15-len(cat))
-        value = row.CurrentValueInHKD
-        pc = '%s' % '{:,.2f}'.format(value / total * 100) + '%'
-        print ('%s \t %s' % (cat_withspace, pc))
-    print ('Total investments: %s HKD | %s USD' % ('{:,.0f}'.format(total), 
+    # print ('\nTotal investments (exc. cash) by category in HKD equivalent:')
+    # for i in range(len(pct)):
+    #     row = pct.iloc[i]
+    #     cat = row.Category
+    #     cat_withspace = cat + ' ' * (15-len(cat))
+    #     value = row.CurrentValueInHKD
+    #     pc = '%s' % '{:,.2f}'.format(value / total * 100) + '%'
+    #     print ('%s \t %s' % (cat_withspace, pc))
+    print ('\nTotal investments: %s HKD | %s USD' % ('{:,.0f}'.format(total), 
                                                    '{:,.0f}'.format(total2)))
 
     # calculate the equivalent in other currencies
@@ -81,13 +81,20 @@ def DisplayPortfolioSummary():
     total_EUR = calc_fx.ConvertTo('EUR','HKD',total_inc_cash)
     total_GBP = calc_fx.ConvertTo('GBP','HKD',total_inc_cash)
     total_SGD = calc_fx.ConvertTo('SGD','HKD',total_inc_cash)
+
+    print ('\nTotal portfolio value including cash & gold: %s HKD' % '{:,.0f}'.format(total_inc_cash))
+    print ('or %s USD | %s EUR | %s GBP | %s SGD' % ('{:,.0f}'.format(total_USD),
+                                                     '{:,.0f}'.format(total_EUR),
+                                                     '{:,.0f}'.format(total_GBP),
+                                                     '{:,.0f}'.format(total_SGD)
+                                                     ))
     
-    print ('\nTotal portfolio value including cash:')
-    print ('>> %s HKD' % '{:,.0f}'.format(total_inc_cash))
-    print ('or %s USD' % '{:,.0f}'.format(total_USD))
-    print ('or %s EUR' % '{:,.0f}'.format(total_EUR))
-    print ('or %s GBP' % '{:,.0f}'.format(total_GBP))
-    print ('or %s SGD' % '{:,.0f}'.format(total_SGD))
+    # print ('\nTotal portfolio value including cash:')
+    # print ('>> %s HKD' % '{:,.0f}'.format(total_inc_cash))
+    # print ('or %s USD' % '{:,.0f}'.format(total_USD))
+    # print ('or %s EUR' % '{:,.0f}'.format(total_EUR))
+    # print ('or %s GBP' % '{:,.0f}'.format(total_GBP))
+    # print ('or %s SGD' % '{:,.0f}'.format(total_SGD))
     
     # # print annualised returns on FSM HK & SG accounts
     # ar_fsmhk = calc_returns.CalcModDietzReturn('FSM HK')
@@ -213,7 +220,7 @@ def DisplayReturnPct():
     ax.set_ylabel('Performance % (>1Y annualised)')
     ax.set_xlabel('Date Range')
     #ax.set_ylabel('Annualised Return % for date range above 1Y')
-    title = 'Portfolio Returns vs S&P 500 - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    title = 'Portfolio Performance - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
     vals = ax.get_yticks()
     ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
@@ -265,7 +272,7 @@ def PlotPortfolioComposition():
     for i in range(len(labels)):
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-60)
+    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-90)
     #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
@@ -276,19 +283,21 @@ def PlotPortfolioComposition():
         horizontalalignment = {-1: "right", 1: "left"}[int(np.sign(x))]
         connectionstyle = "angle,angleA=0,angleB={}".format(ang)
         kw["arrowprops"].update({"connectionstyle": connectionstyle})
-        ax.annotate('{:,.2%}'.format(sizes[i]),
+        ax.annotate(
+            #'{:,.2%}'.format(sizes[i]),
+            labels_with_pct[i],
                     xy=(x, y), 
                     xytext=(1*np.sign(x), 1.1*y),
                     horizontalalignment=horizontalalignment, 
                     **kw, 
-                    fontsize=7)
+                    fontsize=8)
     ax.set_title(title)
-    plt.legend(wedges,
-               labels_with_pct,
-               loc='upper center',
-               bbox_to_anchor=(0.5, -0.05),
-               ncol=3,
-               fontsize=8)
+    # plt.legend(wedges,
+    #            labels_with_pct,
+    #            loc='upper center',
+    #            bbox_to_anchor=(0.5, -0.05),
+    #            ncol=3,
+    #            fontsize=8)
     #plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
 
     # save output as PNG
@@ -299,21 +308,20 @@ def PlotPortfolioComposition():
     
     
 # 2020-12-02: plot donut chart by security currency
-def PlotAssetAllocationCurrencyExposure():
+def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
     # get the data
-    #pcr = calc_summary.GetPortfolioSummaryIncCash()
     pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
     
     # prepare the titles
     by1 = 'AssetClass'
-    title1 = 'Asset Allocation (inc. FX & cash)'
+    title1 = 'Asset Allocation'
     by2 = 'SecurityCcy'
-    title2 = 'Currency Exposure (inc. FX & cash)'
+    title2 = 'Currency Exposure'
     title1 = title1 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     title2 = title2 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
 
     # plot the figure & axis
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8), subplot_kw=dict(aspect="equal"))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
 
     # Asset Allocation
     pct1 = pcr.groupby(by1).agg({'CurrentValueInHKD':'sum'})
@@ -340,14 +348,24 @@ def PlotAssetAllocationCurrencyExposure():
         ax1.annotate(categories_with_pct1[i], xy=(x, y), 
                      xytext=(1*np.sign(x), 1.1*y),
                      horizontalalignment=horizontalalignment, 
-                     **kw, fontsize=10)
+                     **kw, fontsize=8)
     ax1.set_title(title1)
-    
+
     # Currency Exposure
     pct2 = pcr.groupby(by2).agg({'CurrentValueInHKD':'sum'})
     pct2.reset_index(inplace=True)
     total2 = pct2.CurrentValueInHKD.sum()
     pct2['Percentage'] = pct2['CurrentValueInHKD']/pct2.CurrentValueInHKD.sum()
+    
+    # group anything less than 0.5% together
+    pct2_small = pct2[pct2.Percentage<group_small_items].copy()
+    pct2_small_ccy = list(pct2_small.SecurityCcy.unique())
+    pct2_small_ccy = ', '.join(pct2_small_ccy)
+    pct2 = pct2[pct2.Percentage>=group_small_items]
+    pct2 = pct2.append({'SecurityCcy': pct2_small_ccy,
+                        'CurrentValueInHKD': pct2_small.CurrentValueInHKD.sum(),
+                        'Percentage': pct2_small.Percentage.sum()
+                        }, ignore_index=True)
     
     categories2 = pct2[by2]
     values2 = pct2.Percentage
@@ -355,9 +373,11 @@ def PlotAssetAllocationCurrencyExposure():
     for i in range(len(categories2)):
         categories_with_pct2.append(categories2[i] + ' (%s)' % '{:,.2%}'.format(values2[i]))
 
-    
-    
-    wedges2, texts2 = ax2.pie(values2, wedgeprops=dict(width=0.3), startangle=20)
+    wedges2, texts2 = ax2.pie(values2, 
+                              wedgeprops=dict(width=0.3), 
+                              startangle=0, 
+                              #colors=list(mcolors.TABLEAU_COLORS)[:len(pct2)]
+                              )
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges2):
@@ -370,8 +390,9 @@ def PlotAssetAllocationCurrencyExposure():
         ax2.annotate(categories_with_pct2[i], xy=(x, y), 
                      xytext=(1*np.sign(x), 1.1*y),
                      horizontalalignment=horizontalalignment, 
-                     **kw, fontsize=10)
+                     **kw, fontsize=7)
     ax2.set_title(title2)
+    plt.subplots_adjust(wspace=0.2)
     
     # save output as PNG
     output_filename = 'AssetAllocationAndCurrencyExposure.png'
@@ -381,7 +402,7 @@ def PlotAssetAllocationCurrencyExposure():
 
 
 # # 2020-12-02: plot donut chart for portfolio composition
-def PlotPortfolioCompositionBy(by='SecurityType'):
+def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
     #by='SecurityType'
     if by=='SecurityCcy': # NOT IN USE
         title = 'Currency Exposure'
@@ -393,9 +414,13 @@ def PlotPortfolioCompositionBy(by='SecurityType'):
         title = 'Holdings by Fund House'
     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
-    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Adjusted')
-    #pcr = calc_summary.GetPortfolioSummary()
-    #pcr = pcr['Adjusted']
+    # choose which summary to use
+    if inc_cash:
+        pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
+    else:
+        pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Adjusted')
+    
+    
     pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
@@ -497,7 +522,7 @@ def PlotCostvsVal(period='6M', platform=None):
         
         # add annotation: 4 Dec 2020 took profit from Tech
         x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
-        ax.annotate('Took profit from Tech',
+        ax.annotate('Took profit from VGT',
                     xy=('2020-12-04', y2.iloc[x2_pos]),
                     xytext=(-150, 0),
                     textcoords='offset points', color='gray',
@@ -522,26 +547,41 @@ def PlotTopHoldings():
     #variable with information: top_holdings
     top_holdings = calc_summary.TopHoldings()
     labels = list(top_holdings.Name)
+    sizes = list(top_holdings.CurrentValueInHKD)
     sizes_pct = list(top_holdings.PortfolioPct)
+    
+    # assign colour to Category
+    top_holdings.Category = top_holdings.Category.str[1:]
+    cats = top_holdings.Category.unique()
+    colors = list(mcolors.TABLEAU_COLORS)[:len(cats)]
+    cats_colour = {cats[i]: colors[i] for i in range(len(cats))}
+    top_holdings['CategoryColour'] = top_holdings.Category.map(cats_colour)
+
     plt.rcdefaults()
     fig, ax1 = plt.subplots()
     y_pos = np.arange(len(labels))
-    #ax1.barh(y_pos, sizes)
-    ax1.barh(y_pos, sizes_pct)
+    ax1.barh(y_pos, sizes, color=top_holdings.CategoryColour)
     ax1.set_yticks(y_pos)
     ax1.set_yticklabels(labels)
-    #ax1.set_ylabel('Security')
     vals = ax1.get_xticks()
-    ax1.set_xticklabels(['{:,.0%}'.format(x) for x in vals])
-    #ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals])
-    ax1.set_xlabel('Percentage of Portfolio')
-    #ax1.set_xlabel('Current Value (HKD)')
-    #plt.xticks(rotation=45, ha='right')
+    ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals])
+    ax1.set_xlabel('Current Valuation (HKD)')
     title = 'Top Holdings - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     ax1.set(title=title)
-    for index, value in enumerate(sizes_pct):
-        ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
+    
+    for i in range(len(top_holdings)):
+        ax1.text(x=sizes[i],
+                 y=i,
+                 s=str('{:,.2%}'.format(sizes_pct[i])),
+                 color='black',
+                 fontweight='bold'
+                 )
     plt.gca().invert_yaxis()
+    
+    # add legend
+    labels = list(cats_colour.keys())
+    handles = [plt.Rectangle((0,0),1,1, color=cats_colour[label]) for label in labels]
+    plt.legend(handles, labels, title='Category', loc='best')
 
     # save output as PNG
     output_filename = 'TopHoldings.png'
@@ -591,12 +631,12 @@ def PlotRealisedPnLOverTime(period='6M'):
 
     # plot the chart
     fig, ax = plt.subplots()
-    ax.bar(df.Date, df.Dividend, width, label='Dividends')
-    ax.bar(df.Date, df.TradingPnL, width, bottom=df.Dividend, label='Trading PnL')
+    ax.bar(df.Date, df.Dividend, width, label='Dividends', color='tab:blue')
+    ax.bar(df.Date, df.TradingPnL, width, bottom=df.Dividend, label='Capital gains', alpha=0.65, color='tab:orange')
     ax.set_ylabel('Realised PnL (HKD)')
     title = 'Last %s Realised PnL - %s' % (period, datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
-    ax.legend()
+    ax.legend(loc='best')
     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
     #ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
@@ -698,7 +738,7 @@ def PlotPerformanceOfHoldings(period='3M'):
     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
     
     # plot the cost
-    for i in range(len(top10tickers)):
+    for i in reversed(range(len(top10tickers))):
         tmp = hp[hp.BBGCode==top10tickers[i]].copy()
         base = tmp.Close.iloc[0]
         tmp.loc[:,'AdjustedIndex'] = tmp.loc[:,'Close'] / base * 100
@@ -709,7 +749,15 @@ def PlotPerformanceOfHoldings(period='3M'):
         ax.plot(x, y, linestyle='-', label=label,color=colour)
     
     # add legend and other formatting
-    ax.legend(title='Bloomberg ticker', frameon=True, loc='best', ncol=1, bbox_to_anchor=(1,1))
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles[::-1],
+        labels[::-1],
+        title='Bloomberg ticker',
+        frameon=True,
+        loc='best',
+        ncol=1,
+        bbox_to_anchor=(1,1))
     plt.xticks(rotation=45, ha='right')
     ax.set_title(title)
     ax.axhline(y=100, xmin=0, xmax=1, color='black', lw=0.5)
@@ -722,7 +770,7 @@ def PlotPerformanceOfHoldings(period='3M'):
 
 
 # plot Leaders & Laggers (accurate for overnight; longer date range assumes no buying/selling)
-def PlotLeadersAndLaggers(period=None):
+def PlotLeadersAndLaggers(period=None, top_n=5):
     # get market data
     hp = mdata.GetHistoricalData()
     
@@ -751,17 +799,37 @@ def PlotLeadersAndLaggers(period=None):
     # apply the calculation
     for i in range(len(df)):
         df.loc[i,'PctChg'] = _CalculatePctChg(df.BBGCode.iloc[i], period)
+
+    # 16 Dec 2020: NEED TO TAKE INTO ACCOUNT INTRADAY TRANSACTIONS!!!
+    # get starting balance, add transactions, get final valuation
+
+
+
     
     # get existing holdings and calculate amount change
     df = df.merge(ps[['BBGCode','Name','CurrentValueInHKD']], how='left', on='BBGCode')
     df['AmountChgInHKD'] = df.CurrentValueInHKD - (df.CurrentValueInHKD / (1+df.PctChg))
     df = df[df.PctChg!=0]
-    leaders = df.sort_values(['AmountChgInHKD'], ascending=False)#.head(5)
+    
+    leaders = df.sort_values(['AmountChgInHKD'], ascending=False).head(top_n)
     leaders = leaders[leaders.PctChg>0]
     leaders.reset_index(inplace=True)
-    laggers = df.sort_values(['AmountChgInHKD'], ascending=True)#.head(5)
+    laggers = df.sort_values(['AmountChgInHKD'], ascending=True).head(top_n)
     laggers = laggers[laggers.PctChg<0]
     laggers.reset_index(inplace=True)
+
+    # added 15 Dec 2020: fill the gaps
+    nrows_to_add_leaders = top_n - len(leaders)
+    nrows_to_add_laggers = top_n - len(laggers)
+    dic = {'BBGCode':'','AmountChgInHKD':0,'PctChg':0}
+    # add blank rows to Gainers
+    if nrows_to_add_leaders > 0:
+        for i in range(nrows_to_add_leaders):
+            leaders = leaders.append(dic, ignore_index=True)
+    # add blank rows to Losers
+    if nrows_to_add_laggers > 0:
+        for i in range(nrows_to_add_laggers):
+            laggers = laggers.append(dic, ignore_index=True)
 
 
     # plot the charts
@@ -774,13 +842,13 @@ def PlotLeadersAndLaggers(period=None):
     y_pos1 = np.arange(len(labels1))
     ax1.set_yticks(y_pos1)
     ax1.set_yticklabels(labels1)
-    ax1.barh(y_pos1, sizes1, color='tab:green')
+    ax1.barh(y_pos1, sizes1, color='tab:green', alpha=0.75)
     vals1 = ax1.get_xticks()
     ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals1])
     ax1.set_xlabel('Gains (HKD)')
-    title1 = 'Top gainers (+%s HKD)' % '{:,.0f}'.format(sum(sizes1))
+    title1 = 'Top %s gainers (+%s HKD)' % (top_n, '{:,.0f}'.format(sum(sizes1)))
     # add labels
-    for i in range(len(sizes1)):
+    for i in range(len(sizes1[sizes1!=0])):
         ax1.text(x=sizes1[i],
                  y=y_pos1[i],
                  s=str('+'+'{:,.2%}'.format(leaders.PctChg.iloc[i])),
@@ -795,13 +863,13 @@ def PlotLeadersAndLaggers(period=None):
     y_pos2 = np.arange(len(labels2))
     ax2.set_yticks(y_pos2)
     ax2.set_yticklabels(labels2)
-    ax2.barh(y_pos2, sizes2, color='tab:red')
+    ax2.barh(y_pos2, sizes2, color='tab:red', alpha=0.75)
     vals2 = ax2.get_xticks()
     ax2.set_xticklabels(['{:,.0f}'.format(x) for x in vals2])
     ax2.set_xlabel('Losses (HKD)')
-    title2 = 'Top losers (%s HKD)' % '{:,.0f}'.format(sum(sizes2)*-1)
+    title2 = 'Top %s losers (%s HKD)' % (top_n, '{:,.0f}'.format(sum(sizes2)*-1))
     # add labels
-    for i in range(len(sizes2)):
+    for i in range(len(sizes2[sizes2!=0])):
         ax2.text(x=sizes2[i],
                  y=y_pos2[i],
                  s=str('{:,.2%}'.format(laggers.PctChg.iloc[i])),

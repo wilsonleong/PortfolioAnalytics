@@ -108,10 +108,10 @@ def ConvertFX(ccy_source, ccy_target):
 
 # function to look up MongoDB for exchange rate
 # Source: MongoDB (cached)
+### need to add scenario when original_ccy is XAU ###
 def GetFXRate(target_ccy, original_ccy):
     #target_ccy, original_ccy ='HKD','GBP'
-    #target_ccy, original_ccy ='HKD','AUD'
-    #target_ccy, original_ccy ='HKD','MOP'
+    #target_ccy, original_ccy ='HKD','XAU'
     if target_ccy==original_ccy:
         fxrate = 1
     else:
@@ -140,6 +140,7 @@ def GetFXRate(target_ccy, original_ccy):
     return fxrate
 
 
+# use cached MongoDB rate to convert amount from one currency to another
 def ConvertTo(target_ccy, original_ccy, original_amount):
     #target_ccy, original_ccy = 'HKD', 'SGD'
     #target_ccy, original_ccy = 'HKD', 'GBP'

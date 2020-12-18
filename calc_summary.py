@@ -127,9 +127,9 @@ def GetPortfolioSummary():
     # can't assign Portfolio % when Allianz is broken down into separate asset classes
     ps.loc[:,'PortfolioPct'] = ps.loc[:,'CurrentValueInHKD'] / ps.CurrentValueInHKD.sum()
 
-    # # export Portfolio Summary for later use
-    # ps.to_csv('PortfolioSummary.csv', index=False)
-    # setup.UploadLatestPortfolioSummary(ps)
+    # remove rows with 0 holdings
+    ps = ps[ps.NoOfUnits!=0]
+    ps2 = ps2[ps2.NoOfUnits!=0]
 
     PortfolioSummary = {'Original':ps,
                         'Adjusted':ps2}
@@ -202,7 +202,7 @@ def TopHoldings():
     #     else:
     #         df.loc[i, 'CurrentValueHKD'] = calc_fx.ConvertTo('HKD', df.loc[i, 'PlatformCurrency'], df.loc[i, 'CurrentValue'])
     df.loc[:,'PortfolioPct'] = df.loc[:,'CurrentValueInHKD'] / df.CurrentValueInHKD.sum()
-    df = df.sort_values(['CurrentValueInHKD'], ascending=False)[['BBGCode','Name','CurrentValueInHKD','PortfolioPct']].head(10)
+    df = df.sort_values(['CurrentValueInHKD'], ascending=False)[['BBGCode','Name','Category','CurrentValueInHKD','PortfolioPct']].head(10)
     df = df.reset_index(drop=True)
     return df
 
@@ -217,10 +217,10 @@ def GetPortfolioSummaryIncCash():
         row = cash.iloc[i]
         current_value_in_HKD = calc_fx.ConvertTo('HKD', row.Currency, row.Balance)
         dic = {'Platform':'Cash',
-               'AssetClass':'FX & cash',
+               'AssetClass':row.Category[1:],
                'Name':row.AccountName,
                'CurrentValue':row.Balance,
-               'SecurityType':'FX & cash',
+               'SecurityType':row.Category[1:],
                'SecurityCcy':row.Currency,
                'CurrentValueInHKD':current_value_in_HKD,
                'Category':row.Category
@@ -259,6 +259,8 @@ def CalcPortfolioSummaryAndCacheOnDB():
     
     coll.delete_many({'SummaryType':'AdjustedIncCash'})
     coll.insert_many(ps_adjustedIncCash.to_dict('records')) 
+    
+    
 
 
 # get portfolio summary from cache (DB)

@@ -11,6 +11,7 @@ This module does the following:
 
 import datetime
 import dateutil
+import setup
 
 date_ranges = ['YTD','1W','1M','3M','6M','1Y','3Y','5Y']
 
@@ -48,3 +49,19 @@ def GetStartDate(period=None):
     return start_date
 
 
+# function to get start and end dates for Yesterday, ThisWeek, ThisMonth, ThisYear, 20xx
+def GetStartEndDate(period):
+    '''
+    Accepted values for period:
+        Yesterday
+        ThisWeek
+        ThisMonth
+        ThisYear
+        20xx
+    '''
+    
+    
+    
+    start_date = None
+    end_date = None
+    return start_date, end_date
