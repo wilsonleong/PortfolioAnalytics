@@ -190,104 +190,7 @@ def CalcPortfolioHistoricalValuation(platform=None, bbgcode=None, start_date=Non
     return agg
 
 
-# compute the Modified Dietz return
-def CalcModDietzReturn(platform, bbgcode=None, period=None):
-    #period='3M'
-    #period='1W'
-    #platform='FSM HK'
-    #bbgcode=None
-    #bbgcode='VGT US'
-    #bbgcode='XLE US' # bad example, need to adjust for transferring from SG to HK
-    #bbgcode='ALLGAME LX'
-    
-    # collect the data
-    #df = _GetDataset()
-    df = setup.GetAllTransactions()
-
-    # filter on date range for the transactions / cash flows
-    if period is not None:
-        start_date = util.GetStartDate(period)
-        df = df[df.Date >= np.datetime64(start_date)]
-    
-    # filter the data based on selection criteria (bbgcode, or platform)
-    df = df[df.Platform==platform]
-    df.drop(['_id'], axis=1, inplace=True)
-    
-    if bbgcode is not None:
-        df = df[df.BBGCode==bbgcode]
-
-    # Buy and Sell
-    cf = df[df.Type.isin(['Buy','Sell'])].copy()
-    div = df[df.Type=='Dividend']
-    
-    # calc dates
-    date_start = cf.Date.min()
-    date_end = np.datetime64(datetime.datetime.today().date())
-    date_diff = (date_end - date_start).days
-
-    # calculate No of days for weighting    
-    cf.loc[:,'NoOfDays'] = (datetime.datetime.today() - cf.loc[:,'Date']) / pd.Timedelta(days=1)
-    cf.loc[:,'NoOfDays'] = cf.loc[:,'NoOfDays'].astype(int)
-    cf.loc[:,'WeightedCF'] = cf.loc[:,'CostInPlatformCcy'] * cf.loc[:,'NoOfDays'] / date_diff
-    
-    # pnl = current value + realised gains/losses
-    
-    # realised gains/losses (sold securities + dividends)
-    pnl_realised = df.RealisedPnL.sum()
-    
-    ps = calc_summary.GetPortfolioSummary()
-    ps = ps['Original']
-    #ps = calc_summary.ps_original.copy()
-    
-    # unrealised pnl
-    if bbgcode is not None:
-        if len(ps_active.BBGCode==bbgcode) > 0:
-            r = ps_active[ps_active.BBGCode==bbgcode].iloc[0]
-            # current value needs to include realised gains & dividends
-            current_value = r.CurrentValue + pnl_realised
-    else:
-        ps_active = ps[ps.CurrentValue!=0]
-        r = ps_active[ps_active.Platform==platform]
-        # current value needs to include realised gains & dividends
-        current_value = pnl_realised + r.CurrentValue.sum()
-    
-    # withdrawals
-    withdrawals = cf[cf.Type=='Sell']
-    
-    # deposits
-    deposits = cf[cf.Type=='Buy']
-    
-    # numerator: V(1) - V(0) - sum of cash flows
-    if period is None:
-        beginning_value = 0
-    else:
-        beginning_value = _GetValuation(np.datetime64(start_date))
-    
-    net_external_cash_flows = deposits.CostInPlatformCcy.sum() + withdrawals.CostInPlatformCcy.sum()
-    num = current_value - beginning_value - net_external_cash_flows
-    
-    # denominator: V(0) + sum of cash flows weighted
-    den = beginning_value + deposits.WeightedCF.sum() + withdrawals.WeightedCF.sum()
-
-    # Modified Dietz Return (cumulative)
-    mdr = num/den
-    
-    # calculate annualised return
-    annualised_return = (1 + mdr) ** (365/date_diff) - 1
-    
-    # object to return
-    obj = {}
-    obj['DateStart'] = date_start
-    obj['DateEnd'] = date_end
-    obj['CumulativeReturn'] = mdr
-    obj['AnnualisedReturn'] = annualised_return
-    return obj
-#CalcModDietzReturn('FSM HK', period='3M')
-#CalcModDietzReturn('FSM HK', period='1M')  # BUG!!!
-#CalcModDietzReturn('FSM HK', period='1W')  # BUG!!!
-
-
-# calculate the cost of the entire portfolio (add up each transaction in the portfolio)
+# calculate the cost of the entire portfolio (add up each transaction in the portfolio) - for plotting cost vs val
 def CalcPortfolioHistoricalCost(platform=None, start_date=None, base_ccy='HKD'):
     if start_date is None:
         tn = setup.GetAllTransactions()
@@ -605,3 +508,98 @@ def GetIRRFromDB():
     return df
     
 
+# # compute the Modified Dietz return
+# def CalcModDietzReturn(platform, bbgcode=None, period=None):
+#     #period='3M'
+#     #period='1W'
+#     #platform='FSM HK'
+#     #bbgcode=None
+#     #bbgcode='VGT US'
+#     #bbgcode='XLE US' # bad example, need to adjust for transferring from SG to HK
+#     #bbgcode='ALLGAME LX'
+    
+#     # collect the data
+#     #df = _GetDataset()
+#     df = setup.GetAllTransactions()
+
+#     # filter on date range for the transactions / cash flows
+#     if period is not None:
+#         start_date = util.GetStartDate(period)
+#         df = df[df.Date >= np.datetime64(start_date)]
+    
+#     # filter the data based on selection criteria (bbgcode, or platform)
+#     df = df[df.Platform==platform]
+#     df.drop(['_id'], axis=1, inplace=True)
+    
+#     if bbgcode is not None:
+#         df = df[df.BBGCode==bbgcode]
+
+#     # Buy and Sell
+#     cf = df[df.Type.isin(['Buy','Sell'])].copy()
+#     div = df[df.Type=='Dividend']
+    
+#     # calc dates
+#     date_start = cf.Date.min()
+#     date_end = np.datetime64(datetime.datetime.today().date())
+#     date_diff = (date_end - date_start).days
+
+#     # calculate No of days for weighting    
+#     cf.loc[:,'NoOfDays'] = (datetime.datetime.today() - cf.loc[:,'Date']) / pd.Timedelta(days=1)
+#     cf.loc[:,'NoOfDays'] = cf.loc[:,'NoOfDays'].astype(int)
+#     cf.loc[:,'WeightedCF'] = cf.loc[:,'CostInPlatformCcy'] * cf.loc[:,'NoOfDays'] / date_diff
+    
+#     # pnl = current value + realised gains/losses
+    
+#     # realised gains/losses (sold securities + dividends)
+#     pnl_realised = df.RealisedPnL.sum()
+    
+#     ps = calc_summary.GetPortfolioSummary()
+#     ps = ps['Original']
+#     #ps = calc_summary.ps_original.copy()
+    
+#     # unrealised pnl
+#     if bbgcode is not None:
+#         if len(ps_active.BBGCode==bbgcode) > 0:
+#             r = ps_active[ps_active.BBGCode==bbgcode].iloc[0]
+#             # current value needs to include realised gains & dividends
+#             current_value = r.CurrentValue + pnl_realised
+#     else:
+#         ps_active = ps[ps.CurrentValue!=0]
+#         r = ps_active[ps_active.Platform==platform]
+#         # current value needs to include realised gains & dividends
+#         current_value = pnl_realised + r.CurrentValue.sum()
+    
+#     # withdrawals
+#     withdrawals = cf[cf.Type=='Sell']
+    
+#     # deposits
+#     deposits = cf[cf.Type=='Buy']
+    
+#     # numerator: V(1) - V(0) - sum of cash flows
+#     if period is None:
+#         beginning_value = 0
+#     else:
+#         beginning_value = _GetValuation(np.datetime64(start_date))
+    
+#     net_external_cash_flows = deposits.CostInPlatformCcy.sum() + withdrawals.CostInPlatformCcy.sum()
+#     num = current_value - beginning_value - net_external_cash_flows
+    
+#     # denominator: V(0) + sum of cash flows weighted
+#     den = beginning_value + deposits.WeightedCF.sum() + withdrawals.WeightedCF.sum()
+
+#     # Modified Dietz Return (cumulative)
+#     mdr = num/den
+    
+#     # calculate annualised return
+#     annualised_return = (1 + mdr) ** (365/date_diff) - 1
+    
+#     # object to return
+#     obj = {}
+#     obj['DateStart'] = date_start
+#     obj['DateEnd'] = date_end
+#     obj['CumulativeReturn'] = mdr
+#     obj['AnnualisedReturn'] = annualised_return
+#     return obj
+# #CalcModDietzReturn('FSM HK', period='3M')
+# #CalcModDietzReturn('FSM HK', period='1M')  # BUG!!!
+# #CalcModDietzReturn('FSM HK', period='1W')  # BUG!!!

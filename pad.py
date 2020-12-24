@@ -15,6 +15,7 @@ import pandas as pd
 import datetime
 
 
+# This function generates the list of transactions based on input start and end dates - to be pasted into PAD declaration form.
 def GetTransactionList(DateFrom, DateTo):
     #DateFrom = datetime.datetime(2017,4,1)
     #DateTo = datetime.datetime(2017,9,30)
@@ -110,6 +111,7 @@ def _GetBalCF(Platform, BBGCode, Date):
     return bal_cf
 
 
+# This function generates the list of portfolio holdings including balance b/f and balance c/f - to be pasted into the PAD declaration form.
 def GetHoldingsSummary(DateFrom, DateTo):
     #DateFrom = datetime.datetime(2017,4,1)
     #DateTo = datetime.datetime(2017,9,30)

@@ -21,6 +21,9 @@ import pandas as pd
 import datetime
 import mdata
 
+# for converting WAC from platform ccy to security ccy
+import calc_fx
+
 
 def ConnectToMongoDB():
     MongoServer='localhost:27017'
@@ -97,6 +100,7 @@ def GetSecurityCurrency(security):
     return Currency
 
 
+# returns the weighted average cost in platform currency
 def GetWeightedAvgCost(TransactionDate, BBGCode, Quantity, Platform):
     # weighted average cost (in platform currency)
 #    BBGCode = 'PBISEAS ID'
@@ -106,6 +110,21 @@ def GetWeightedAvgCost(TransactionDate, BBGCode, Quantity, Platform):
     tns = GetAllTransactions()
     tns = tns[(tns.BBGCode==BBGCode) & (tns.Date <= TransactionDate) & (tns.Platform==Platform)]
     wac = tns.CostInPlatformCcy.sum() / tns.NoOfUnits.sum() * Quantity
+    return wac
+
+
+# returns the weighted average cost per unit in security currency
+def GetWeightedAvgCostPerUnitInSecCcy(bbgcode, platform):
+    #bbgcode, platform = 'XLE US', 'FSM SG'
+    wac_pccy = GetWeightedAvgCost(datetime.datetime.now(), BBGCode=bbgcode, Quantity=1, Platform=platform)
+    # check if secuirty ccy is same as platform ccy
+    pccy = GetPlatformCurrency(platform)
+    sccy = GetSecurityCurrency(bbgcode)
+    if sccy==pccy:
+        wac = wac_pccy
+    else:
+        # need to convert the WAC to security ccy using latest FX rates
+        wac = calc_fx.ConvertTo(target_ccy=sccy, original_ccy=pccy, original_amount=wac_pccy)
     return wac
 
 

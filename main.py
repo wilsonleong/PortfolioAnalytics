@@ -39,6 +39,7 @@ import viz
 import mdata
 import calc_summary
 import calc_returns
+import calc_val
 
 
 def main():
@@ -50,6 +51,7 @@ def main():
 
     # 3) Market data: collect the latest (including intra-day) NAV of supported stocks, ETFs and mutual funds with existing holdings -> cache on DB
     mdata.UpdateLastNAV()
+    calc_val.ProcessLastNAV()
 
     # 4) Market data: collect the latest (including intra-day) FX rates -> cache on DB
     setup.UpdateLatestFXrates()

@@ -18,16 +18,17 @@ import pandas as pd
 import calc_val
 import calc_fx
 import mdata
+_output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\output'
 
 
-# store a copy of the output on MongoDB for future reference
-def UploadLatestPortfolioSummary(ps):
-    print ('\nUpdating Portfolio Summary on MongoDB...')
-    db = ConnectToMongoDB()
-    coll = db['LatestPortfolioSummary']
-    coll.delete_many({})
-    coll.insert_many(ps.to_dict('records'))
-    print ('(update completed)')
+# # store a copy of the output on MongoDB for future reference
+# def UploadLatestPortfolioSummary(ps):
+#     print ('\nUpdating Portfolio Summary on MongoDB...')
+#     db = ConnectToMongoDB()
+#     coll = db['LatestPortfolioSummary']
+#     coll.delete_many({})
+#     coll.insert_many(ps.to_dict('records'))
+#     print ('(update completed)')
 
 
 # generate a data table summary of the portfolio based on transactions and referential data
@@ -56,7 +57,7 @@ def GetPortfolioSummary():
     # enrich transactions with the latest price
     lastnav = calc_val.GetLastNAV()
     
-    summary = summary.merge(lastnav[['BBGCode','LastNAV','SecurityCurrency']], how='left', left_on='BBGCode', right_on='BBGCode')
+    summary = summary.merge(lastnav[['BBGCode','LastNAV','LastUpdated','SecurityCurrency']], how='left', left_on='BBGCode', right_on='BBGCode')
     
     # added 22 Nov 2018 (remove unused stock code)
     summary = summary[summary.SecurityCurrency.notnull()]
@@ -70,7 +71,7 @@ def GetPortfolioSummary():
     summary['PnL'] = summary.CurrentValue - summary.CostInPlatformCcy #- summary.RealisedPnL
     summary.PnL = summary.PnL.round(2)
     agg2 = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'CurrentValue':sum, 'PnL':sum, 'RealisedPnL':sum}
-    ps = summary.groupby(['Platform','PlatformCurrency','FundHouse','AssetClass','Name','BBGCode','LastNAV']).agg(agg2)
+    ps = summary.groupby(['Platform','PlatformCurrency','FundHouse','AssetClass','Name','BBGCode','LastNAV','LastUpdated']).agg(agg2)
     ps.reset_index(inplace=True)
 
     ps['PnLPct'] = ps.PnL / ps.CostInPlatformCcy
@@ -95,6 +96,11 @@ def GetPortfolioSummary():
     ps.loc[:,'CostInHKD'] = ps.loc[:,'CurrentValueInHKD']/ps.loc[:,'CurrentValue'] * ps.loc[:,'CostInPlatformCcy']
     ps.loc[:,'PnLInHKD'] = ps.loc[:,'CurrentValueInHKD']/ps.loc[:,'CurrentValue'] * ps.loc[:,'PnL']
 
+    # 22 Dec 2020: add SecCcy to HKD rate, add WA cost in Security Ccy
+    for i in [x for x in ps.index]:
+        row = ps.loc[i]
+        ps.loc[i,'WAC'] = setup.GetWeightedAvgCostPerUnitInSecCcy(row.BBGCode, row.Platform)
+    
     # total PnL = realised + unrealised
     # (should I add or not? TO BE DECIDED)
 
@@ -176,9 +182,7 @@ def _GetSecurityCategory(name):
 
 
 def GetPnLUnrealised():
-    ps = GetPortfolioSummary()
-    ps = ps['Original']
-    #ps = ps_original.copy()
+    ps = GetPortfolioSummaryFromDB(summary_type='Original')
     ps_active = ps[ps.CurrentValue!=0]
     PnLByPlatformAndAccount = ps_active.groupby(['Platform','Name','PlatformCurrency']).agg({'CurrentValue':sum,'PnL':sum})
     PnLByPlatform = ps_active.groupby(['PlatformCurrency','Platform']).agg({'CostInPlatformCcy':sum,'CurrentValue':sum,'PnL':sum})
@@ -232,6 +236,7 @@ def GetPortfolioSummaryIncCash():
 
 # calculate portfolio summary and cache on DB
 def CalcPortfolioSummaryAndCacheOnDB():
+    print ('\nComputing portfolio summary...')
     # DB
     db = setup.ConnectToMongoDB()
     coll = db['PortfolioSummary']
@@ -259,8 +264,21 @@ def CalcPortfolioSummaryAndCacheOnDB():
     
     coll.delete_many({'SummaryType':'AdjustedIncCash'})
     coll.insert_many(ps_adjustedIncCash.to_dict('records')) 
+    print ('(updated portfolio summary on mongodb)')
     
-    
+    # output to CSV file
+    ps_original = ps_original[['Platform','Name','BBGCode','WAC','LastNAV','LastUpdated','CostInHKD','CurrentValueInHKD','PnLInHKD','PnLPct','PortfolioPct']].copy()
+    ps_original.rename(columns={'LastNAV':'Last NAV',
+                                'LastUpdated':'Last Updated',
+                                'WAC':'WA cost',
+                                'CostInHKD':'Cost (HKD)',
+                                'CurrentValueInHKD':'Current Value (HKD)',
+                                'PnLInHKD':'PnL (HKD)',
+                                'PnLPct':'PnL (%)',
+                                'PortfolioPct':'% of Ptf'
+                                }, inplace=True)
+    ps_original.to_csv(_output_dir + r'\ps_original.csv', index=False)
+    print ('(exported portfolio summary as CSV)')
 
 
 # get portfolio summary from cache (DB)

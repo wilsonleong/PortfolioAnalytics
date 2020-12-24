@@ -18,8 +18,8 @@ import calc_fx
 
 
 
-# Get latest NAV and last updated timestamp of existing holdings across all platforms
-def GetLastNAV():
+# Get latest NAV and last updated timestamp of existing holdings across all platforms, and cache on MongoDB
+def ProcessLastNAV():
     # get all transactions from MongoDB
     tran = setup.GetAllTransactions()
     #tran['NoOfUnits'] = tran.NoOfUnits.astype(np.float32)
@@ -62,6 +62,14 @@ def GetLastNAV():
     LastNAV = db['LastNAV']
     LastNAV.delete_many({})
     LastNAV.insert_many(tran_summary[['BBGCode','LastNAV','SecurityCurrency','FXRate','LastUpdated']].to_dict('records'))
-    return tran_summary
+    #return tran_summary
 
 
+# get the latest NAV cached on MongoDB
+def GetLastNAV():
+    db = setup.ConnectToMongoDB()
+    LastNAV = db['LastNAV']
+    LastNAV.find()
+    df = pd.DataFrame(list(LastNAV.find()))
+    df.drop(columns=['_id'], inplace=True)
+    return df

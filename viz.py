@@ -33,7 +33,7 @@ import mdata
 _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\sample screenshots'
 
 
-# displays a summary in the console (text)
+# This function displays a summary of realised and unrealised PnL in plain text format in the console
 def DisplayPnL():
     # get the calculations
     pnl_unrealised = calc_summary.GetPnLUnrealised()
@@ -54,7 +54,7 @@ def DisplayPnL():
     print (pnl.groupby(['Platform','PlatformCurrency']).sum())
 
 
-# display portfolio summary
+# This function displays a summary of the portfolio in plain text format in the console
 def DisplayPortfolioSummary():
     # Portfolio composition report
     pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Original')
@@ -62,15 +62,6 @@ def DisplayPortfolioSummary():
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
     total2 = calc_fx.ConvertTo('USD','HKD',total)
-
-    # print ('\nTotal investments (exc. cash) by category in HKD equivalent:')
-    # for i in range(len(pct)):
-    #     row = pct.iloc[i]
-    #     cat = row.Category
-    #     cat_withspace = cat + ' ' * (15-len(cat))
-    #     value = row.CurrentValueInHKD
-    #     pc = '%s' % '{:,.2f}'.format(value / total * 100) + '%'
-    #     print ('%s \t %s' % (cat_withspace, pc))
     print ('\nTotal investments: %s HKD | %s USD' % ('{:,.0f}'.format(total), 
                                                    '{:,.0f}'.format(total2)))
 
@@ -88,38 +79,12 @@ def DisplayPortfolioSummary():
                                                      '{:,.0f}'.format(total_GBP),
                                                      '{:,.0f}'.format(total_SGD)
                                                      ))
-    
-    # print ('\nTotal portfolio value including cash:')
-    # print ('>> %s HKD' % '{:,.0f}'.format(total_inc_cash))
-    # print ('or %s USD' % '{:,.0f}'.format(total_USD))
-    # print ('or %s EUR' % '{:,.0f}'.format(total_EUR))
-    # print ('or %s GBP' % '{:,.0f}'.format(total_GBP))
-    # print ('or %s SGD' % '{:,.0f}'.format(total_SGD))
-    
-    # # print annualised returns on FSM HK & SG accounts
-    # ar_fsmhk = calc_returns.CalcModDietzReturn('FSM HK')
-    # ar_fsmsg = calc_returns.CalcModDietzReturn('FSM SG')
-    # print ('')
-    # print ('Annualised returns from inception (time-weighted):')
-    # print ('> FSM HK: \t\t' + '{:,.2%}'.format(ar_fsmhk['AnnualisedReturn']))
-    # print ('> FSM SG: \t\t' + '{:,.2%}'.format(ar_fsmsg['AnnualisedReturn']))
-    # print ('')
 
 
 # display return %
-def DisplayReturnPct():    
+def DisplayReturnPct():
     # IRR
     date_ranges = util.date_ranges
-    
-    # # get the IRR for the date ranges
-    # returns = {}
-    # for i in range(len(date_ranges)):
-    #     returns[date_ranges[i]] = calc_returns.CalcIRR(period=date_ranges[i])
-
-    # # get the IRR % only
-    # returns_irr = {}
-    # for i in range(len(date_ranges)):
-    #     returns_irr[date_ranges[i]] = returns[date_ranges[i]]['IRR']
     
     # get IRR from cache (DB)
     returns_irr = calc_returns.GetIRRFromDB()
@@ -222,58 +187,63 @@ def DisplayReturnPct():
     #ax.set_ylabel('Annualised Return % for date range above 1Y')
     title = 'Portfolio Performance - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
-    vals = ax.get_yticks()
-    ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
-    # this is bugged when there is negative value
-    # for ymaj in ax.yaxis.get_majorticklocs():
-    #     ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
+    
     if has_negative_values:
         ax.axhline(y=0, ls='-', lw=0.25, color='black')
+
+    # plot major gridlines on y-axis
+    for ymaj in ax.yaxis.get_majorticklocs():
+        ax.axhline(y=ymaj, ls=':', lw=0.25, color='gray')
+
+    # this is bugged when there is negative value, needs to be run at last
+    vals = ax.get_yticks()
+    ax.set_yticklabels(['{:,.0%}'.format(x) for x in vals])
 
     # save output as PNG
     output_filename = 'PortfolioPerformance.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
-    ax.legend(loc='upper right', bbox_to_anchor=(1,-0.1))
+    #ax.legend(loc='upper right', bbox_to_anchor=(1,-0.1))
+    ax.legend(loc='best')
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
 
-# plot chart: portfolio composition
+# This function plots a donut chart of the portfolio composition by predefined categories
 def PlotPortfolioComposition():
     # prepare data
-    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Original')
+    #pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Original')
+    pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
     pct = pcr.groupby('Category').agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
-
-    # plot bar chart
     pct['Percentage']=pct['CurrentValueInHKD']/pct.CurrentValueInHKD.sum()
     labels = list(pct.Category)
-    #sizes = list(pct.CurrentValueInHKD)
     sizes = list(pct.Percentage)
-    plt.rcdefaults()
-    fig, ax1 = plt.subplots()
-    y_pos = np.arange(len(labels))
-    ax1.barh(y_pos, sizes)
-    ax1.set_yticks(y_pos)
-    ax1.set_yticklabels(labels)
-    ax1.set_xlabel('Percentage of Portfolio')
-    ax1.set_ylabel('Category')
-    vals = ax1.get_xticks()
-    ax1.set_xticklabels(['{:,.0%}'.format(x) for x in vals])
     title = 'Portfolio Composition - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
-    ax1.set(title=title)
-    for index, value in enumerate(sizes):
-        ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
-    plt.gca().invert_yaxis()
-    plt.show()
+    #plt.subplots_adjust()
+
+    # # plot bar chart
+    # plt.rcdefaults()
+    # fig, ax1 = plt.subplots()
+    # y_pos = np.arange(len(labels))
+    # ax1.barh(y_pos, sizes)
+    # ax1.set_yticks(y_pos)
+    # ax1.set_yticklabels(labels)
+    # ax1.set_xlabel('Percentage of Portfolio')
+    # ax1.set_ylabel('Category')
+    # vals = ax1.get_xticks()
+    # ax1.set_xticklabels(['{:,.0%}'.format(x) for x in vals])
+    # ax1.set(title=title)
+    # for index, value in enumerate(sizes):
+    #     ax1.text(value, index, str('{:,.2%}'.format(value)), color='black', fontweight='bold')
+    # plt.gca().invert_yaxis()
+    # plt.show()
 
     # 2020-12-01: plot donut chart by category
     labels_with_pct = []
     for i in range(len(labels)):
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-90)
-    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
+    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-80)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges):
@@ -284,7 +254,6 @@ def PlotPortfolioComposition():
         connectionstyle = "angle,angleA=0,angleB={}".format(ang)
         kw["arrowprops"].update({"connectionstyle": connectionstyle})
         ax.annotate(
-            #'{:,.2%}'.format(sizes[i]),
             labels_with_pct[i],
                     xy=(x, y), 
                     xytext=(1*np.sign(x), 1.1*y),
@@ -292,13 +261,14 @@ def PlotPortfolioComposition():
                     **kw, 
                     fontsize=8)
     ax.set_title(title)
-    # plt.legend(wedges,
-    #            labels_with_pct,
-    #            loc='upper center',
-    #            bbox_to_anchor=(0.5, -0.05),
-    #            ncol=3,
-    #            fontsize=8)
-    #plt.legend(wedges, labels_with_pct, loc='center', fontsize=8)
+    
+    # # adjust plot margin
+    # plot_margin = 0.5
+    # x0, x1, y0, y1 = plt.axis()
+    # plt.axis((x0 - plot_margin,
+    #           x1 + plot_margin,
+    #           y0 - plot_margin,
+    #           y1 + plot_margin))
 
     # save output as PNG
     output_filename = 'PortfolioComposition.png'
@@ -307,7 +277,7 @@ def PlotPortfolioComposition():
     plt.show()
     
     
-# 2020-12-02: plot donut chart by security currency
+# This function plots a donut chart of asset allocation and currency exposure; it can group items below a threshold into a single group.
 def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
     # get the data
     pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
@@ -321,7 +291,8 @@ def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
     title2 = title2 + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
 
     # plot the figure & axis
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    #fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10,8))
 
     # Asset Allocation
     pct1 = pcr.groupby(by1).agg({'CurrentValueInHKD':'sum'})
@@ -401,7 +372,7 @@ def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
     plt.show()
 
 
-# # 2020-12-02: plot donut chart for portfolio composition
+# This function plots a donut chart of the portfolio broken down by a specified data field, e.g. Product Type / Fund House.
 def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
     #by='SecurityType'
     if by=='SecurityCcy': # NOT IN USE
@@ -420,7 +391,6 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
     else:
         pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Adjusted')
     
-    
     pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
     total = pct.CurrentValueInHKD.sum()
@@ -433,7 +403,6 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
         categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
     wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=0)
-    #bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.72)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges):
@@ -445,7 +414,6 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
         kw["arrowprops"].update({"connectionstyle": connectionstyle})
         ax.annotate(categories_with_pct[i], xy=(x, y), xytext=(1*np.sign(x), 1.1*y),horizontalalignment=horizontalalignment, **kw, fontsize=10)
     ax.set_title(title)
-    #plt.legend(wedges, categories_with_pct, loc='center', fontsize=8)
 
     # save output as PNG
     output_filename = 'PortfolioCompositionBy' + by + '.png'
@@ -454,7 +422,7 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
     plt.show()
 
 
-# plot line of costs for US ETF portfolio
+# This function plots the historical investment cost against valuation.
 def PlotCostvsVal(period='6M', platform=None):
     #period,platform='6M','FSM SG'
     # collect the data
@@ -506,10 +474,6 @@ def PlotCostvsVal(period='6M', platform=None):
     y2 = df.ValuationHKD
     ax.plot(x2, y2, linestyle='-', color='orange', label='Valuation')
     
-    # add legend
-    #ax.legend(frameon=False, loc='lower center', ncol=2)
-    ax.legend(frameon=True, loc='best', ncol=1)
-    
     if platform is None or platform=='FSM HK':
         # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
         x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
@@ -528,9 +492,18 @@ def PlotCostvsVal(period='6M', platform=None):
                     textcoords='offset points', color='gray',
                     arrowprops=dict(arrowstyle='-|>', color='gray')
                     )
+
+    # plot major gridlines on y-axis
+    for ymaj in ax.yaxis.get_majorticklocs():
+        ax.axhline(y=ymaj, ls=':', lw=0.25, color='gray')
     
     #fig.autofmt_xdate(rotation=45)
     plt.xticks(rotation=45, ha='right')
+
+    # add legend
+    #ax.legend(frameon=False, loc='lower center', ncol=2)
+    #ax.legend(frameon=True, loc='best', ncol=1)
+    ax.legend(frameon=True, loc='upper left', ncol=1)
 
     # save output as PNG
     output_filename = 'CostVsValuation.png'
@@ -542,10 +515,11 @@ def PlotCostvsVal(period='6M', platform=None):
 #PlotCostvsVal(period='6M', platform='FSM SG')
 
 
-# plot the top 10 holdings
+# This function plots the top holdings in the portfolio, displayed in both HKD value and % of portfolio total.
 def PlotTopHoldings():
     #variable with information: top_holdings
     top_holdings = calc_summary.TopHoldings()
+    top_holdings['CurrentValueInThousandsHKD'] = top_holdings.CurrentValueInHKD / 1000
     labels = list(top_holdings.Name)
     sizes = list(top_holdings.CurrentValueInHKD)
     sizes_pct = list(top_holdings.PortfolioPct)
@@ -564,7 +538,7 @@ def PlotTopHoldings():
     ax1.set_yticks(y_pos)
     ax1.set_yticklabels(labels)
     vals = ax1.get_xticks()
-    ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals])
+    ax1.set_xticklabels(['{:,.0f}k'.format(x/1000) for x in vals])
     ax1.set_xlabel('Current Valuation (HKD)')
     title = 'Top Holdings - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     ax1.set(title=title)
@@ -573,8 +547,7 @@ def PlotTopHoldings():
         ax1.text(x=sizes[i],
                  y=i,
                  s=str('{:,.2%}'.format(sizes_pct[i])),
-                 color='black',
-                 fontweight='bold'
+                 color='black'
                  )
     plt.gca().invert_yaxis()
     
@@ -583,6 +556,10 @@ def PlotTopHoldings():
     handles = [plt.Rectangle((0,0),1,1, color=cats_colour[label]) for label in labels]
     plt.legend(handles, labels, title='Category', loc='best')
 
+    # plot major gridlines
+    for xmaj in ax1.xaxis.get_majorticklocs():
+        ax1.axvline(x=xmaj, ls=':', lw=0.25, color='gray')
+
     # save output as PNG
     output_filename = 'TopHoldings.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
@@ -590,7 +567,7 @@ def PlotTopHoldings():
     plt.show()
 
 
-# plots a stacked bar chart of realised PnL over time
+# This function plots a stacked bar chart of realised PnL (dividends vs capital gains) over the specified period.
 def PlotRealisedPnLOverTime(period='6M'):
     # set the date range
     if period is not None:
@@ -636,12 +613,16 @@ def PlotRealisedPnLOverTime(period='6M'):
     ax.set_ylabel('Realised PnL (HKD)')
     title = 'Last %s Realised PnL - %s' % (period, datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     ax.set_title(title)
-    ax.legend(loc='best')
+    #ax.legend(loc='best')
+    ax.legend(loc='upper left')
     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
     #ax.xaxis.set_major_formatter(mdates.DateFormatter('%b'))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
     for ymaj in ax.yaxis.get_majorticklocs():
-        ax.axhline(y=ymaj, ls='-', lw=0.25, color='black')
+        ax.axhline(y=ymaj, ls=':', lw=0.25, color='gray')
+
+    if len(df[df.TradingPnL<0]):
+        ax.axhline(y=0, ls='-', lw=0.25, color='black')
 
     #fig.autofmt_xdate(rotation=45)
     plt.xticks(rotation=45, ha='right')
@@ -653,68 +634,7 @@ def PlotRealisedPnLOverTime(period='6M'):
     plt.show()
 
 
-# # XY plot with bubbles of PnL, PnL%, Portfolio % as size (IRR won't work because I don't hold funds long enough)
-# def PlotXYBubbles(period='1M'):
-#     # get the data
-#     ps = calc_summary.GetPortfolioSummaryFromDB('Original')
-#     ps = ps[ps.NoOfUnits!=0]
-
-#     # # filter by supported instruments with market data (too many newly bought are NA)
-#     # ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
-#     # ps.reset_index(inplace=True)
-#     # # calc IRR for holdings
-#     # for i in range(len(ps)):
-#     #     row = ps.iloc[i]
-#     #     IRR = calc_returns.CalcIRR(platform=row.Platform,
-#     #                                             bbgcode=row.BBGCode,
-#     #                                             period=period)
-#     #     ps.loc[i,'IRR'] = IRR['IRR']
-    
-#     # chart data
-#     x = list(ps.PnLInHKD)
-#     y = list(ps.PnLPct)
-#     size = ps.PortfolioPct*1000
-#     color = list(mcolors.TABLEAU_COLORS)[:len(x)]
-#     labels = list(ps.Name)
-    
-#     # assign colour to Category
-#     cats = list(ps.Category.unique())
-#     cats_colour = {cats[i]: color[i] for i in range(len(cats))} 
-#     ps['CategoryColour'] = ps.Category.map(cats_colour)
-
-#     # plot the chart
-#     fig, ax = plt.subplots()
-    
-#     scatter = ax.scatter(x, y, s=size, c=ps.CategoryColour, alpha=0.5)
-    
-#     # draw lines on the axis
-#     ax.axhline(y=0, xmin=0, xmax=1, color='black', lw=0.5)
-#     ax.axvline(x=0, ymin=0, ymax=1, color='black', lw=0.5)
-    
-#     # add labels to points
-#     for i, txt in enumerate(labels):
-#         ax.annotate(txt, 
-#                     (x[i], y[i]),
-#                     xytext=(10,0),
-#                     textcoords='offset points', color='gray', fontsize=8
-#                     )
-    
-#     title = 'Scatter Plot of Investments - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
-#     ax.set_title(title)
-#     ax.xaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
-#     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.2f}'))
-#     plt.xlabel('Unrealised PnL (HKD)', size=10)
-#     plt.ylabel('Unrealised PnL %', size=10)
-#     #ax.legend(title='Category', frameon=True, loc='best', ncol=1, bbox_to_anchor=(1,1))
-    
-#     # save output as PNG
-#     output_filename = 'ScatterPlotOfInvestments.png'
-#     output_fullpath = '%s/%s' % (_output_dir, output_filename)
-#     fig.savefig(output_fullpath, format='png', dpi=300, bbox_inches='tight')
-#     plt.show()
-
-
-# plot performance of holdings over time
+# This function plots the performance of top holdings over a specified period.
 def PlotPerformanceOfHoldings(period='3M'):
     # get the start date
     start_date = util.GetStartDate(period)
@@ -761,6 +681,9 @@ def PlotPerformanceOfHoldings(period='3M'):
     plt.xticks(rotation=45, ha='right')
     ax.set_title(title)
     ax.axhline(y=100, xmin=0, xmax=1, color='black', lw=0.5)
+    # plot major gridlines on y-axis
+    for ymaj in ax.yaxis.get_majorticklocs():
+        ax.axhline(y=ymaj, ls=':', lw=0.25, color='gray')
     
     # save output as PNG
     output_filename = 'TopHoldingsPerformance.png'
@@ -834,15 +757,20 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
 
     # plot the charts
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10,4))
+    plt.subplots_adjust(wspace=0.4)
     plt.rcdefaults()
     
     # Top 5 gainers
     labels1 = leaders.BBGCode
     sizes1 = leaders.AmountChgInHKD
     y_pos1 = np.arange(len(labels1))
+    ax1.barh(y_pos1, sizes1, color='tab:green', alpha=0.75)
+    # plot major gridlines
+    for xmaj in ax1.xaxis.get_majorticklocs():
+        ax1.axvline(x=xmaj, ls=':', lw=0.25, color='gray')
+
     ax1.set_yticks(y_pos1)
     ax1.set_yticklabels(labels1)
-    ax1.barh(y_pos1, sizes1, color='tab:green', alpha=0.75)
     vals1 = ax1.get_xticks()
     ax1.set_xticklabels(['{:,.0f}'.format(x) for x in vals1])
     ax1.set_xlabel('Gains (HKD)')
@@ -861,9 +789,13 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
     labels2 = laggers.BBGCode
     sizes2 = laggers.AmountChgInHKD*-1
     y_pos2 = np.arange(len(labels2))
+    ax2.barh(y_pos2, sizes2, color='tab:red', alpha=0.75)
+    # plot major gridlines
+    for xmaj in ax2.xaxis.get_majorticklocs():
+        ax2.axvline(x=xmaj, ls=':', lw=0.25, color='gray')
+
     ax2.set_yticks(y_pos2)
     ax2.set_yticklabels(labels2)
-    ax2.barh(y_pos2, sizes2, color='tab:red', alpha=0.75)
     vals2 = ax2.get_xticks()
     ax2.set_xticklabels(['{:,.0f}'.format(x) for x in vals2])
     ax2.set_xlabel('Losses (HKD)')
@@ -877,6 +809,7 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
     ax2.set(title=title2)
     ax2.invert_yaxis()
 
+
     #plt.gca().invert_yaxis()
     if period is None:
         dr = 'overnight'
@@ -884,7 +817,7 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
         dr = period
     title = 'Gainers and Losers (%s) - %s' % (dr, datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
     plt.suptitle(title, fontsize=12)
-    plt.subplots_adjust(top=0.85, wspace=0.4)
+    
 
     # save output as PNG
     output_filename = 'GainersAndLosers.png'
@@ -892,3 +825,63 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
+
+# # XY plot with bubbles of PnL, PnL%, Portfolio % as size (IRR won't work because I don't hold funds long enough)
+# def PlotXYBubbles(period='1M'):
+#     # get the data
+#     ps = calc_summary.GetPortfolioSummaryFromDB('Original')
+#     ps = ps[ps.NoOfUnits!=0]
+
+#     # # filter by supported instruments with market data (too many newly bought are NA)
+#     # ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
+#     # ps.reset_index(inplace=True)
+#     # # calc IRR for holdings
+#     # for i in range(len(ps)):
+#     #     row = ps.iloc[i]
+#     #     IRR = calc_returns.CalcIRR(platform=row.Platform,
+#     #                                             bbgcode=row.BBGCode,
+#     #                                             period=period)
+#     #     ps.loc[i,'IRR'] = IRR['IRR']
+    
+#     # chart data
+#     x = list(ps.PnLInHKD)
+#     y = list(ps.PnLPct)
+#     size = ps.PortfolioPct*1000
+#     color = list(mcolors.TABLEAU_COLORS)[:len(x)]
+#     labels = list(ps.Name)
+    
+#     # assign colour to Category
+#     cats = list(ps.Category.unique())
+#     cats_colour = {cats[i]: color[i] for i in range(len(cats))} 
+#     ps['CategoryColour'] = ps.Category.map(cats_colour)
+
+#     # plot the chart
+#     fig, ax = plt.subplots()
+    
+#     scatter = ax.scatter(x, y, s=size, c=ps.CategoryColour, alpha=0.5)
+    
+#     # draw lines on the axis
+#     ax.axhline(y=0, xmin=0, xmax=1, color='black', lw=0.5)
+#     ax.axvline(x=0, ymin=0, ymax=1, color='black', lw=0.5)
+    
+#     # add labels to points
+#     for i, txt in enumerate(labels):
+#         ax.annotate(txt, 
+#                     (x[i], y[i]),
+#                     xytext=(10,0),
+#                     textcoords='offset points', color='gray', fontsize=8
+#                     )
+    
+#     title = 'Scatter Plot of Investments - %s' % (datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+#     ax.set_title(title)
+#     ax.xaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
+#     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.2f}'))
+#     plt.xlabel('Unrealised PnL (HKD)', size=10)
+#     plt.ylabel('Unrealised PnL %', size=10)
+#     #ax.legend(title='Category', frameon=True, loc='best', ncol=1, bbox_to_anchor=(1,1))
+    
+#     # save output as PNG
+#     output_filename = 'ScatterPlotOfInvestments.png'
+#     output_fullpath = '%s/%s' % (_output_dir, output_filename)
+#     fig.savefig(output_fullpath, format='png', dpi=300, bbox_inches='tight')
+#     plt.show()
