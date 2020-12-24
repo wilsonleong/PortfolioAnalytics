@@ -38,38 +38,38 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 #### main.py
 * Runs the main application
 
-**setup.py**
+#### setup.py
 * Connects to MongoDB
 * Platform and securities referential
 * Transactions processing
 * Weighted average cost calculation (when selling)
 * Handling of uninvested cash balances
 
-**mdata.py**
+#### mdata.py
 * Yahoo Finance API
 * Get historical NAV
 * Get historical FX rates
 * Historical NAV processing, cache on MongoDB
 
-**calc_fx.py**
+#### calc_fx.py
 * FX conversions
 
-**calc_val.py**
+#### calc_val.py
 * Latest NAV processing (both Yahoo Finance API and manual input of unsupported mutual funds)
 
-**calc_summary.py**
+#### calc_summary.py
 * Portfolio summary, inc. uninvested cash
 * Realised and unrealised PnL
 * Adjustment: 1 fund -> allocation to 3 asset classes
 
-**calc_returns.py**
+#### calc_returns.py
 * Modified Dietz Return (time-weighted): suitable measurement for a fund manager (emphasizes on overall trading decisions)
 * Internal Rate of Return (money-weighted): suitable measurement for an individual investor (emphasizes on impacts of in/out flows)
 * Yahoo Finance API (historical prices, FX rates)
 * Historical cost vs valuation
 * Calculates returns of benchmark (S&P 500)
 
-**viz.py**
+#### viz.py
 * Portfolio Performance (IRR) vs Benchmark (S&P 500)
 * Cost vs Latest Valuation
 * Realised PnL over time, breakdown by dividends & trading PnL
@@ -80,10 +80,10 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 * Product Type Breakdown
 * Holdings by Fund House
 
-**pad.py**
+#### pad.py
 * PAD reporting
 * Transactions list
 * Holdings summary (balance b/f and c/f)
 
-**util.py**
+#### util.py
 * handling of date range periods
