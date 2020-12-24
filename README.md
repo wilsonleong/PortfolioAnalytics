@@ -35,7 +35,7 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 
 ## Modules
 
-**main.py**
+#### main.py
 * Runs the main application
 
 **setup.py**
