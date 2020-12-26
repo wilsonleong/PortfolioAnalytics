@@ -243,7 +243,7 @@ def PlotPortfolioComposition():
     for i in range(len(labels)):
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-80)
+    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-95)
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges):
@@ -643,7 +643,8 @@ def PlotPerformanceOfHoldings(period='3M'):
     ps = calc_summary.GetPortfolioSummaryFromDB()
     ps = ps[ps.NoOfUnits>0]
     ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
-    top10tickers = list(ps.sort_values('CurrentValueInHKD', ascending=False).head(10).BBGCode)
+    #top10tickers = list(ps.sort_values('CurrentValueInHKD', ascending=False).head(10).BBGCode)
+    top10tickers = list(ps.groupby(['BBGCode']).agg({'CurrentValueInHKD':'sum'}).sort_values('CurrentValueInHKD', ascending=False).head(10).index)
     
     # get the historical market data
     hp = mdata.GetHistoricalData()
@@ -701,8 +702,9 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
     ps = calc_summary.GetPortfolioSummaryFromDB('Original')
     ps = ps[ps.NoOfUnits>0]
     ps = ps[ps.BBGCode.isin(setup.GetListOfSupportedInstruments())]
+    grouped = ps.groupby(['BBGCode','Name']).agg({'CurrentValueInHKD':'sum'})
     
-    tickers = list(ps.BBGCode)
+    tickers = list(ps.BBGCode.unique())
     
     # create a table to store the league table
     df = pd.DataFrame(tickers, columns=['BBGCode'])
@@ -730,7 +732,7 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
 
     
     # get existing holdings and calculate amount change
-    df = df.merge(ps[['BBGCode','Name','CurrentValueInHKD']], how='left', on='BBGCode')
+    df = df.merge(grouped, how='left', on='BBGCode')
     df['AmountChgInHKD'] = df.CurrentValueInHKD - (df.CurrentValueInHKD / (1+df.PctChg))
     df = df[df.PctChg!=0]
     

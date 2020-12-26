@@ -54,9 +54,12 @@ def GetPortfolioSummary():
     summary = pd.merge(summary, platforms, how='left', left_on='Platform', right_on='PlatformName')
     summary.drop(['PlatformName','_id','SecurityCurrency'], axis=1, inplace=True)
 
-    # enrich transactions with the latest price
+    # enrich transactions with the latest price (ARKG has 2 FX rates USDHKD USDSGD that can cause duplicates)
     lastnav = calc_val.GetLastNAV()
+    lastnav = lastnav.groupby(['BBGCode','LastNAV','SecurityCurrency']).agg({'LastUpdated':'min'})
+    lastnav.reset_index(inplace=True)
     
+    ### bug fixed 26 Dec 2020: left join caused duplicates
     summary = summary.merge(lastnav[['BBGCode','LastNAV','LastUpdated','SecurityCurrency']], how='left', left_on='BBGCode', right_on='BBGCode')
     
     # added 22 Nov 2018 (remove unused stock code)
@@ -195,20 +198,14 @@ def GetPnLUnrealised():
 
 # return the top holdings in the portfolio
 def TopHoldings():
-    #df = GetPortfolioSummary()
-    #df = df['Original']
     df = GetPortfolioSummaryFromDB(summary_type='Original')
-    # # need to convert all to HKD first
-    # for i in range(len(df)):
-    #     row = df.iloc[i]
-    #     if row.PlatformCurrency=='HKD':
-    #         df.loc[i, 'CurrentValueHKD'] = df.loc[i, 'CurrentValue']
-    #     else:
-    #         df.loc[i, 'CurrentValueHKD'] = calc_fx.ConvertTo('HKD', df.loc[i, 'PlatformCurrency'], df.loc[i, 'CurrentValue'])
-    df.loc[:,'PortfolioPct'] = df.loc[:,'CurrentValueInHKD'] / df.CurrentValueInHKD.sum()
-    df = df.sort_values(['CurrentValueInHKD'], ascending=False)[['BBGCode','Name','Category','CurrentValueInHKD','PortfolioPct']].head(10)
-    df = df.reset_index(drop=True)
-    return df
+    # group by bbgcode (because same ETF can be held on different platforms)
+    g = df.groupby(['BBGCode','Name','Category']).agg({'CurrentValueInHKD':'sum'})
+    g.reset_index(inplace=True)
+    g.loc[:,'PortfolioPct'] = g.loc[:,'CurrentValueInHKD'] / g.CurrentValueInHKD.sum()
+    g = g.sort_values(['CurrentValueInHKD'], ascending=False)[['BBGCode','Name','Category','CurrentValueInHKD','PortfolioPct']].head(10)
+    g = g.reset_index(drop=True)
+    return g
 
 
 # Portfolio Summary, including uninvested cash balances

@@ -109,7 +109,10 @@ def GetWeightedAvgCost(TransactionDate, BBGCode, Quantity, Platform):
 #    Platform = 'FSM SG'
     tns = GetAllTransactions()
     tns = tns[(tns.BBGCode==BBGCode) & (tns.Date <= TransactionDate) & (tns.Platform==Platform)]
-    wac = tns.CostInPlatformCcy.sum() / tns.NoOfUnits.sum() * Quantity
+    if tns.NoOfUnits.sum()==0:
+        wac = 0
+    else:
+        wac = tns.CostInPlatformCcy.sum() / tns.NoOfUnits.sum() * Quantity
     return wac
 
 
