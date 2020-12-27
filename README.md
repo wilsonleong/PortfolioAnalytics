@@ -35,6 +35,8 @@ I built my own portfolio analytics tool that consolidates all my transactions ac
 
 ## Modules
 
+Wikipage for modules & functions: https://github.com/wilsonleong/PortfolioAnalytics/wiki/Modules-and-Functions
+
 #### main.py
 * Runs the main application
 
