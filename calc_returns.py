@@ -343,7 +343,7 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
         currencies = [setup.GetPlatformCurrency(x) for x in platforms]
         platform_ccy = {platforms[x]: currencies[x] for x in range(len(platforms))}
         cf['PlatformCcy'] = cf.Platform.map(platform_ccy)
-        cf = cf[['Date','PlatformCcy','Cashflow']]
+        cf = cf[['Date','Type','BBGCode','PlatformCcy','Cashflow']]
         # calculate HKD equivalent
         SGDHKD = calc_fx.GetFXRate('HKD','SGD')
         ToHKD = {'HKD':1, 'SGD':SGDHKD}

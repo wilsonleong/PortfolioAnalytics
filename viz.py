@@ -160,8 +160,10 @@ def DisplayReturnPct():
             label='S&P500 Index', lw=0)
 
     # add annotate text (YTD)
+    #y_ytd = returns_irr['YTD'] if returns_irr['YTD'] > spx.loc['YTD','AnnualisedReturn'] else spx.loc['YTD','AnnualisedReturn']
     ax.annotate(comp_full_text,
             xy=(list(date_ranges).index('YTD'), returns_irr['YTD']),
+            #xy=(list(date_ranges).index('YTD'), y_ytd),
             #xytext=(-25, 50),
             xytext=(0, 25),
             textcoords='offset points', 
@@ -203,7 +205,7 @@ def DisplayReturnPct():
     output_filename = 'PortfolioPerformance.png'
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
     #ax.legend(loc='upper right', bbox_to_anchor=(1,-0.1))
-    ax.legend(loc='best')
+    ax.legend(loc='upper left')
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
 
@@ -823,6 +825,75 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
 
     # save output as PNG
     output_filename = 'GainersAndLosers.png'
+    output_fullpath = '%s/%s' % (_output_dir, output_filename)
+    fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
+    plt.show()
+
+
+# plot historical total net worth, broken by asset class
+def PlotHistoricalSnapshot(period='6M'):
+    # set the date range
+    if period is not None:
+        start_date = util.GetStartDate(period)
+        #start_date = datetime.datetime.combine(start_date, datetime.datetime.min.time())
+
+    # prepare the data
+    df = calc_summary.GetHistoricalSnapshotFromDB()
+    df = df[df.Date > start_date]
+    dic = df.to_dict('records')
+
+    # process the dict
+    hist = pd.DataFrame()
+    for i in range(len(dic)):
+        ps = pd.DataFrame(dic[i]['PortfolioSummary'])
+        hist = hist.append(ps)
+    
+    # plot each category as a separate series
+    cats = list(hist.Category.unique())
+    cats.sort()
+    series_data = []
+    for x in cats:
+        category = x
+        # for each category, need to get the total for each date
+        cat_data = hist[hist.Category==x].groupby('Date').agg({'ValueInHKD':'sum'}).reset_index()
+        dates = list(cat_data.Date)
+        values = list(cat_data.ValueInHKD)
+        series_data.append({'Category':category,
+                            'Dates':dates,
+                            'Values':values})
+    colours = list(mcolors.TABLEAU_COLORS)[:len(cats)]
+    
+    # plot the chart
+    fig, ax = plt.subplots()
+    stacked_height = np.array([0] * len(series_data[0]['Dates']))
+    for i in range(len(cats)):
+        ax.bar(#x = series_data[i]['Dates'],
+               x = df.Date,
+               height = series_data[i]['Values'],
+               bottom = stacked_height,
+               #width = 5,
+               #alpha=0.5,
+               label = series_data[i]['Category'],
+               color=colours[i]
+               )
+        stacked_height = stacked_height + np.array(series_data[i]['Values'])
+
+    # format the chart
+    ax.set_ylabel('Total Net Worth (HKD)')
+    title = 'Net Worth Over Last %s - %s' % (period, datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
+    ax.set_title(title)
+    ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    for ymaj in ax.yaxis.get_majorticklocs():
+        ax.axhline(y=ymaj, ls=':', lw=0.25, color='gray')
+    plt.xticks(rotation=45, ha='right')
+    
+    # add legend
+    #ax.legend(loc='best')
+    plt.legend(bbox_to_anchor=(1.04,1), loc='upper left')
+    
+    # save output as PNG
+    output_filename = 'Last_%s_NetWorthOverTime.png' % period
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()

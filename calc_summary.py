@@ -12,11 +12,12 @@ This module does the following:
 
 
 
-
+import datetime
 import setup
 import pandas as pd
 import calc_val
 import calc_fx
+import calc_returns
 import mdata
 _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\output'
 
@@ -44,7 +45,8 @@ def GetPortfolioSummary():
     tn = pd.merge(tn, sec, how='left', left_on='BBGCode', right_on='BBGCode')
 
     agg = {'NoOfUnits':sum, 'CostInPlatformCcy':sum, 'RealisedPnL':sum} 
-    summary = tn.groupby(['Platform','Name','FundHouse','AssetClass','BBGCode','BBGPriceMultiplier','Currency']).agg(agg)
+    #summary = tn.groupby(['Platform','Name','FundHouse','AssetClass','BBGCode','BBGPriceMultiplier','Currency']).agg(agg)
+    summary = tn.groupby(['Platform','Name','FundHouse','AssetClass','BBGCode','Currency']).agg(agg)
     summary.reset_index(inplace=True)
     summary.rename(columns={'Currency':'SecurityCurrency'},inplace=True)
 
@@ -69,7 +71,8 @@ def GetPortfolioSummary():
     for i in range(len(summary)):
         #summary.loc[i,'FXConversionRate'] = GetFXRate(summary.loc[i,'PlatformCurrency'], summary.loc[i,'SecurityCurrency'])
         summary.loc[i,'FXConversionRate'] = calc_fx.ConvertFX(summary.loc[i,'SecurityCurrency'], summary.loc[i,'PlatformCurrency'])
-        summary['CurrentValue'] = summary.NoOfUnits * summary.LastNAV * summary.FXConversionRate / summary.BBGPriceMultiplier
+        #summary['CurrentValue'] = summary.NoOfUnits * summary.LastNAV * summary.FXConversionRate / summary.BBGPriceMultiplier
+        summary['CurrentValue'] = summary.NoOfUnits * summary.LastNAV * summary.FXConversionRate
     summary.CurrentValue = summary.CurrentValue.round(2)
     summary['PnL'] = summary.CurrentValue - summary.CostInPlatformCcy #- summary.RealisedPnL
     summary.PnL = summary.PnL.round(2)
@@ -210,14 +213,29 @@ def TopHoldings():
 
 # Portfolio Summary, including uninvested cash balances
 def GetPortfolioSummaryIncCash():
+    now = datetime.datetime.now()
     cash = setup.GetBankAndCashBalances()
-    ps = GetPortfolioSummary()
-    ps_adjusted = ps['Adjusted']
+    #ps = GetPortfolioSummary()
+    #ps_adjusted = ps['Adjusted']
+    ps_adjusted = GetPortfolioSummaryFromDB('Adjusted')
     ps_IncCash = ps_adjusted.copy()
     for i in range(len(cash)):
         row = cash.iloc[i]
         current_value_in_HKD = calc_fx.ConvertTo('HKD', row.Currency, row.Balance)
         dic = {'Platform':'Cash',
+               'PlatformCurrency':row.Currency,
+               'FundHouse':None,
+               'BBGCode':None,
+               'LastNAV':None,
+               'LastUpdated':now,
+               'NoOfUnits':None,
+               'CostInPlatformCcy':None,
+               'PnL':None,
+               'RealisedPnL':None,
+               'PnLPct':None,
+               'CostInHKD':None,
+               'PnLInHKD':None,
+               'WAC':None,
                'AssetClass':row.Category[1:],
                'Name':row.AccountName,
                'CurrentValue':row.Balance,
@@ -227,6 +245,7 @@ def GetPortfolioSummaryIncCash():
                'Category':row.Category
                }
         ps_IncCash = ps_IncCash.append(dic, ignore_index=True)
+    # recalculate % of total
     ps_IncCash.loc[:,'PortfolioPct'] = ps_IncCash.loc[:,'CurrentValueInHKD'] / ps_IncCash.CurrentValueInHKD.sum()
     return ps_IncCash
 
@@ -288,3 +307,65 @@ def GetPortfolioSummaryFromDB(summary_type='Original'):
         })))
     df.drop(columns=['_id'], inplace=True)
     return df
+
+
+# store the portfolio summary in the history table on the DB
+def StorePortfolioSummaryHistoryOnDB():
+    # connect to mongodb (get IRR, store snapshot)
+    db = setup.ConnectToMongoDB()
+    
+    # get IRR
+    irr = pd.DataFrame(db['PortfolioPerformance'].find())
+    irr.set_index('Period', inplace=True)
+    dic_IRR = {}
+    for x in irr.index:
+        dic_IRR[x] = irr.loc[x, 'IRR']
+    
+    # get SPX IRR
+    spx = calc_returns.GetSPXReturns()
+    dic_IRR_SPX = {}
+    for x in spx.index:
+        dic_IRR_SPX[x] = spx.loc[x,'AnnualisedReturn']
+    
+    # get the portfolio summary
+    now = datetime.datetime.now()
+    ps_inc_cash = GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
+    cols = ['Platform','AssetClass','SecurityType','Category','Name','CurrentValueInHKD']
+    ps = ps_inc_cash[cols].copy()
+    ps.rename(columns={'CurrentValueInHKD':'ValueInHKD'}, inplace=True)
+    ps['Date'] = now
+    
+    # get the totals in other currencies (current FX rate)
+    total_inc_cash = ps_inc_cash.CurrentValueInHKD.sum()
+    total_USD = calc_fx.ConvertTo('USD','HKD',total_inc_cash)
+    total_EUR = calc_fx.ConvertTo('EUR','HKD',total_inc_cash)
+    total_GBP = calc_fx.ConvertTo('GBP','HKD',total_inc_cash)
+    total_SGD = calc_fx.ConvertTo('SGD','HKD',total_inc_cash)
+    dic_totals = {}
+    dic_totals['HKD'] = total_inc_cash
+    dic_totals['USD'] = total_USD
+    dic_totals['EUR'] = total_EUR
+    dic_totals['GBP'] = total_GBP
+    dic_totals['SGD'] = total_SGD
+    
+    # construct the dict to store on MongoDB    
+    dic = {}
+    dic['Date'] = now
+    dic['PortfolioSummary'] = ps.to_dict('records')
+    dic['Totals'] = dic_totals
+    dic['IRR'] = dic_IRR
+    dic['IRR_SPX'] = dic_IRR_SPX
+
+    # push to MongoDB
+    coll = db['HistoricalSnapshot']
+    coll.insert_one(dic)
+    
+
+# get the history of portfolio summary from the DB
+def GetHistoricalSnapshotFromDB():
+    db = setup.ConnectToMongoDB()
+    coll = db['HistoricalSnapshot']
+    df = pd.DataFrame(list(coll.find()))
+    df.drop(columns=['_id'], inplace=True)
+    return df
+

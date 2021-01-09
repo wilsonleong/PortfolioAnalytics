@@ -67,6 +67,7 @@ def main():
     # 7) Calculations: compute portfolio summary and IRR%s -> cache on DB
     calc_summary.CalcPortfolioSummaryAndCacheOnDB()
     calc_returns.CalcIRRAndCacheOnDB()
+    calc_summary.StorePortfolioSummaryHistoryOnDB()
 
     # 8) Visualisations: load cached data from DB and plot various charts
     # text display in console
@@ -84,7 +85,7 @@ def main():
     viz.PlotTopHoldings()
     viz.PlotPortfolioCompositionBy(by='SecurityType',inc_cash=True)
     viz.PlotPortfolioCompositionBy(by='FundHouse')
-
+    viz.PlotHistoricalSnapshot(period='6M')
     
 
 
