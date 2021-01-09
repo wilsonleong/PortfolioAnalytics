@@ -53,8 +53,8 @@ def InsertSecurity(db,
                    SecurityCategory,
                    SecurityName, 
                    SecurityCcy, 
-                   SecurityFXCode,
-                   BBGPriceMultiplier, 
+                   #SecurityFXCode,
+                   #BBGPriceMultiplier, 
                    FundHouse,
                    YahooFinanceTicker
                    ):
@@ -72,8 +72,8 @@ def InsertSecurity(db,
            'Category':SecurityCategory,
            'Name':SecurityName,
            'Currency':SecurityCcy,
-           'FXCode':SecurityFXCode,
-           'BBGPriceMultiplier':BBGPriceMultiplier,
+           #'FXCode':SecurityFXCode,
+           #'BBGPriceMultiplier':BBGPriceMultiplier,
            'FundHouse':FundHouse,
            'YahooFinanceTicker':YahooFinanceTicker
            }
@@ -283,11 +283,12 @@ def InitialSetup():
         category = row.Category
         name = row.Name
         ccy = row.Currency
-        fxcode = row.FXCode if row.FXCode is not np.nan else None
-        multiplier = int(row.BBGPriceMultiplier)
+        #fxcode = row.FXCode if row.FXCode is not np.nan else None
+        #multiplier = int(row.BBGPriceMultiplier)
         fm = row.FundHouse
         yf_ticker = row.YahooFinanceTicker if row.YahooFinanceTicker is not np.nan else None
-        InsertSecurity(db, bbgcode, assetclass, assettype, category, name, ccy, fxcode, multiplier, fm, yf_ticker)
+        #InsertSecurity(db, bbgcode, assetclass, assettype, category, name, ccy, fxcode, multiplier, fm, yf_ticker)
+        InsertSecurity(db, bbgcode, assetclass, assettype, category, name, ccy, fm, yf_ticker)
 
 
 # insert transactions from start date (removes anything from start date first)
@@ -302,7 +303,7 @@ def InsertHistTransactions(start_date=datetime.datetime(2020,12,1)):
     # load historical transactions
     transfile = _setupfile
     t = pd.read_excel(transfile, sheet_name='Transactions')
-    t.drop(['SecurityName'], axis=1, inplace=True)
+    #t.drop(['SecurityName'], axis=1, inplace=True)
     t = t[t.Date>=start_date]
 
     ns = 1e-9
