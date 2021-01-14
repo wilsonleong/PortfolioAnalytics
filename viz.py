@@ -37,6 +37,7 @@ _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTrac
 def DisplayPnL():
     # get the calculations
     pnl_unrealised = calc_summary.GetPnLUnrealised()
+    
     # print PnL by platform and Currency
     print ('\n*** PnL by Platform and Account ***')
     print (pnl_unrealised['PnLByPlatformAndAccount'])
@@ -44,14 +45,36 @@ def DisplayPnL():
     print ('\n*** PnL by Platform ***')
     print (pnl_unrealised['PnLByPlatform'])
 
+    # unrealised PnL in a single currency
+    pnl_unrealised_by_ccy = pnl_unrealised['PnLByPlatform'].groupby('PlatformCurrency').agg({'PnL':'sum'})
+    for x in pnl_unrealised_by_ccy.index:
+        pnl_unrealised_by_ccy.loc[x,'PnLInHKD'] = calc_fx.ConvertTo('HKD', x, pnl_unrealised_by_ccy.loc[x, 'PnL'])
+    pnl_unrealised_in_HKD = pnl_unrealised_by_ccy.PnLInHKD.sum()
+    pnl_unrealised_in_USD = calc_fx.ConvertTo('USD', 'HKD', pnl_unrealised_in_HKD)
+    print ('Total unrealised PnL: %s HKD | %s USD ' % ('{:,.0f}'.format(pnl_unrealised_in_HKD), 
+                                                       '{:,.0f}'.format(pnl_unrealised_in_USD)
+                                                       ))
+
     # historical realised PnL
     print ('\n*** Realised PnL (not inc. platform fees) ***')
     pnl_obj = calc_summary.GetHistoricalRealisedPnL()
     pnl = pnl_obj[1]
-    
     pnl = pnl.reset_index()
-    print ('')
     print (pnl.groupby(['Platform','PlatformCurrency']).sum())
+    
+    # calculate and display the total realised PnL in a single currency
+    pnl_by_ccy = pnl.groupby(['PlatformCurrency']).sum()
+    for x in pnl_by_ccy.index:
+        pnl_by_ccy.loc[x, 'RealisedPnLInHKD'] = calc_fx.ConvertTo('HKD', x, pnl_by_ccy.loc[x, 'RealisedPnL'])
+    pnl_in_HKD = pnl_by_ccy.RealisedPnLInHKD.sum()
+    
+    # output PnL by ccy to CSV file
+    pnl_by_ccy.to_csv(calc_summary._output_dir+'/RealisedPnL.csv')
+    
+    pnl_in_USD = calc_fx.ConvertTo('USD', 'HKD', pnl_in_HKD)
+    print ('Total realised PnL: %s HKD | %s USD ' % ('{:,.0f}'.format(pnl_in_HKD), 
+                                                     '{:,.0f}'.format(pnl_in_USD)
+                                                     ))
 
 
 # This function displays a summary of the portfolio in plain text format in the console
@@ -96,14 +119,32 @@ def DisplayReturnPct():
         dic[returns_irr.loc[i,'Period']] = returns_irr.loc[i,'IRR']
     returns_irr = dic
     
+    # caclulate supported instruments value as % of total
     supported_instruments = setup.GetListOfSupportedInstruments()
     ps = calc_summary.GetPortfolioSummaryFromDB()
     ps_supported_instruments = ps[ps.BBGCode.isin(supported_instruments)]
+
+    # get SPX returns as benchmark
+    spx = calc_returns.GetSPXReturns()
+
     print ('\nPerformance of Yahoo Finance supported instruments (%s of total):' % '{:,.2%}'.format(ps_supported_instruments.CurrentValueInHKD.sum()/ps.CurrentValueInHKD.sum()))
-    for i in range(len(returns_irr)):
-        print ('> %s: \t\t' % list(returns_irr.keys())[i] + '{:,.2%}'.format(list(returns_irr.values())[i]))
-        #row = returns_irr.iloc[i]
-        #print ('> %s: \t\t' % row.Period + '{:,.2%}'.format(row.IRR))
+    # get IRR vs SPX returns
+    perf = spx[['AnnualisedReturn']].copy()
+    perf.rename(columns={'AnnualisedReturn':'SPX'}, inplace=True)
+    perf['MyPtf'] = pd.Series(returns_irr)
+    perf['Outperformance'] = perf.MyPtf - perf.SPX
+    perf = perf[['MyPtf','SPX','Outperformance']]
+    perf.rename(columns={'MyPtf':'My Portfolio','SPX':'SPX Returns'}, inplace=True)
+    pd.options.display.float_format = '{:,.2%}'.format
+    print (perf)
+    pd.options.display.float_format = '{:,.2f}'.format
+
+    # output performance data to CSV file
+    perf.to_csv(calc_summary._output_dir+'/Performance.csv')
+
+    # print ('\nPerformance of Yahoo Finance supported instruments (%s of total):' % '{:,.2%}'.format(ps_supported_instruments.CurrentValueInHKD.sum()/ps.CurrentValueInHKD.sum()))
+    # for i in range(len(returns_irr)):
+    #     print ('> %s: \t\t' % list(returns_irr.keys())[i] + '{:,.2%}'.format(list(returns_irr.values())[i]))
     print ('Total value of supported instruments: %s HKD' % ('{:,.0f}'.format(ps_supported_instruments.CurrentValueInHKD.sum())))
     print ('')
 
@@ -111,10 +152,6 @@ def DisplayReturnPct():
     # prepare the data
     date_ranges = np.array(date_ranges)
     values = np.array(list(returns_irr.values()))
-
-    # get SPX returns as benchmark
-    spx = calc_returns.GetSPXReturns()
-    #spx_returns = np.array(spx.Returns)
     
     has_negative_values = False
     if len(spx[spx.AnnualisedReturn < 0]) > 0:
@@ -151,8 +188,8 @@ def DisplayReturnPct():
     # plot the date ranges with empty values first (to set the order)
     ax.bar(date_ranges, [0]*len(date_ranges))
     # then plot postive first, and then negative
-    ax.bar(date_ranges[return_positive], values[return_positive], color='tab:green')
-    ax.bar(date_ranges[return_negative], values[return_negative], color='tab:red')
+    ax.bar(date_ranges[return_positive], values[return_positive], color='tab:green', alpha=0.75)
+    ax.bar(date_ranges[return_negative], values[return_negative], color='tab:red', alpha=0.75)
 
     # add SPX as benchmark
     ax.plot(date_ranges, list(spx.AnnualisedReturn), color='tab:blue', 
@@ -246,6 +283,11 @@ def PlotPortfolioComposition():
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
     wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-95)
+    
+    # set 75% transparency in the pie colour
+    for i in range(len(wedges)):
+        wedges[i].set_alpha(0.75)
+        
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges):
@@ -309,6 +351,11 @@ def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
         categories_with_pct1.append(categories1[i] + ' (%s)' % '{:,.2%}'.format(values1[i]))
         
     wedges1, texts1 = ax1.pie(values1, wedgeprops=dict(width=0.3), startangle=180)
+
+    # set 75% transparency in the pie colour
+    for i in range(len(wedges1)):
+        wedges1[i].set_alpha(0.75)
+    
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges1):
@@ -351,6 +398,11 @@ def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
                               startangle=0, 
                               #colors=list(mcolors.TABLEAU_COLORS)[:len(pct2)]
                               )
+
+    # set 75% transparency in the pie colour
+    for i in range(len(wedges2)):
+        wedges2[i].set_alpha(0.75)
+    
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges2):
@@ -384,7 +436,7 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
     elif by=='AssetClass': # NOT IN USE
         title = 'Asset Class Breakdown'
     if by=='FundHouse':
-        title = 'Holdings by Fund House'
+        title = 'ETF & UT Holdings by Fund House'
     title = title + ' - %s' % datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S')
     
     # choose which summary to use
@@ -392,6 +444,10 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
         pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
     else:
         pcr = calc_summary.GetPortfolioSummaryFromDB(summary_type='Adjusted')
+    
+    # if it's by fund house, then remove anything that aren't mutual funds or ETFs
+    if by=='FundHouse':
+        pcr = pcr[pcr.SecurityType.isin(['ETF','Mutual Fund'])]
     
     pct = pcr.groupby(by).agg({'CurrentValueInHKD':'sum'})
     pct.reset_index(inplace=True)
@@ -405,6 +461,11 @@ def PlotPortfolioCompositionBy(by='SecurityType', inc_cash=True):
         categories_with_pct.append(categories[i] + ' (%s)' % '{:,.2%}'.format(values[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
     wedges, texts = ax.pie(values, wedgeprops=dict(width=0.3), startangle=0)
+
+    # set 75% transparency in the pie colour
+    for i in range(len(wedges)):
+        wedges[i].set_alpha(0.75)
+
     bbox_props = dict(boxstyle="square,pad=0.3", fc="w", ec="k", lw=0.5)
     kw = dict(arrowprops=dict(arrowstyle="-"), bbox=bbox_props, zorder=0, va="center")
     for i, p in enumerate(wedges):
@@ -469,7 +530,7 @@ def PlotCostvsVal(period='6M', platform=None):
     x1 = df.Date
     y1 = df.AccumCostHKD
     #ax.plot(x1, y1, marker='.', linestyle='-')
-    ax.plot(x1, y1, linestyle='-', label='Investment cost')
+    ax.plot(x1, y1, linestyle='-', label='Investment cost', alpha=0.75)
     
     # plot the valuation
     x2 = df.Date
@@ -479,18 +540,27 @@ def PlotCostvsVal(period='6M', platform=None):
     if platform is None or platform=='FSM HK':
         # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
         x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
-        ax.annotate('Took profit from JETS, reinvested in ARKK',
+        ax.annotate('Took profit: JETS',
                     xy=('2020-11-24', y2.iloc[x2_pos]),
-                    xytext=(-250, 0),
+                    xytext=(-125, 0),
                     textcoords='offset points', color='gray',
                     arrowprops=dict(arrowstyle='-|>', color='gray')
                     )
         
         # add annotation: 4 Dec 2020 took profit from Tech
         x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
-        ax.annotate('Took profit from VGT',
+        ax.annotate('Took profit: VGT',
                     xy=('2020-12-04', y2.iloc[x2_pos]),
-                    xytext=(-150, 0),
+                    xytext=(-125, 0),
+                    textcoords='offset points', color='gray',
+                    arrowprops=dict(arrowstyle='-|>', color='gray')
+                    )
+
+        # add annotation: 8 Jan 2021 took profit from Schroder Asian Growth
+        x2_pos = x2[x2 == datetime.datetime(2021, 1, 8)].index
+        ax.annotate('Took profit: SCHSEAI SP',
+                    xy=('2021-01-08', y2.iloc[x2_pos]),
+                    xytext=(-150, -75),
                     textcoords='offset points', color='gray',
                     arrowprops=dict(arrowstyle='-|>', color='gray')
                     )
@@ -536,7 +606,7 @@ def PlotTopHoldings():
     plt.rcdefaults()
     fig, ax1 = plt.subplots()
     y_pos = np.arange(len(labels))
-    ax1.barh(y_pos, sizes, color=top_holdings.CategoryColour)
+    ax1.barh(y_pos, sizes, color=top_holdings.CategoryColour, alpha=0.75)
     ax1.set_yticks(y_pos)
     ax1.set_yticklabels(labels)
     vals = ax1.get_xticks()
@@ -610,7 +680,7 @@ def PlotRealisedPnLOverTime(period='6M'):
 
     # plot the chart
     fig, ax = plt.subplots()
-    ax.bar(df.Date, df.Dividend, width, label='Dividends', color='tab:blue')
+    ax.bar(df.Date, df.Dividend, width, label='Dividends', color='tab:blue', alpha=0.65)
     ax.bar(df.Date, df.TradingPnL, width, bottom=df.Dividend, label='Capital gains', alpha=0.65, color='tab:orange')
     ax.set_ylabel('Realised PnL (HKD)')
     title = 'Last %s Realised PnL - %s' % (period, datetime.datetime.strftime(datetime.datetime.today(), '%Y-%m-%d %H:%M:%S'))
@@ -669,7 +739,7 @@ def PlotPerformanceOfHoldings(period='3M'):
         x = tmp.Date
         y = tmp.AdjustedIndex
         colour = list(mcolors.TABLEAU_COLORS.keys())[i]
-        ax.plot(x, y, linestyle='-', label=label,color=colour)
+        ax.plot(x, y, linestyle='-', label=label,color=colour, alpha=0.75)
     
     # add legend and other formatting
     handles, labels = ax.get_legend_handles_labels()
@@ -831,7 +901,19 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
 
 
 # plot historical total net worth, broken by asset class
-def PlotHistoricalSnapshot(period='6M'):
+def PlotHistoricalSnapshot(period='6M', by=None):
+    '''
+    By options:
+        None            Default: by Asset Class
+        Category        Asia, Europe, US, Energy, Financials, etc.
+        AssetClass      Equity, Credit, Gold, FX & cash, etc.
+        SecurityType    Stock, ETF, Mutual Fund, Gold, FX & cash, etc.
+    '''
+    
+    # assign default breakdown by
+    if by is None:
+        by = 'AssetClass'
+    
     # set the date range
     if period is not None:
         start_date = util.GetStartDate(period)
@@ -848,17 +930,20 @@ def PlotHistoricalSnapshot(period='6M'):
         ps = pd.DataFrame(dic[i]['PortfolioSummary'])
         hist = hist.append(ps)
     
+    # check if data exists for this date, if so, take the later one
+    #hist['dt'] = pd.to_datetime(hist.Date.dt.date)
+    
     # plot each category as a separate series
-    cats = list(hist.Category.unique())
+    cats = list(hist[by].unique())
     cats.sort()
     series_data = []
     for x in cats:
         category = x
         # for each category, need to get the total for each date
-        cat_data = hist[hist.Category==x].groupby('Date').agg({'ValueInHKD':'sum'}).reset_index()
+        cat_data = hist[hist[by]==x].groupby('Date').agg({'ValueInHKD':'sum'}).reset_index()
         dates = list(cat_data.Date)
         values = list(cat_data.ValueInHKD)
-        series_data.append({'Category':category,
+        series_data.append({'BreakdownBy':category,
                             'Dates':dates,
                             'Values':values})
     colours = list(mcolors.TABLEAU_COLORS)[:len(cats)]
@@ -873,8 +958,9 @@ def PlotHistoricalSnapshot(period='6M'):
                bottom = stacked_height,
                #width = 5,
                #alpha=0.5,
-               label = series_data[i]['Category'],
-               color=colours[i]
+               label = series_data[i]['BreakdownBy'],
+               color=colours[i],
+               alpha=0.75
                )
         stacked_height = stacked_height + np.array(series_data[i]['Values'])
 

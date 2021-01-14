@@ -47,7 +47,7 @@ def main():
     setup.InitialSetup()  # initial setup and other hardcoded transactions (exc import from FSM SG)
 
     # 2) Setup: process new transactions
-    setup.InsertHistTransactions(datetime.datetime(2020,12,1))
+    setup.InsertHistTransactions(datetime.datetime(2021,1,1))
 
     # 3) Market data: collect the latest (including intra-day) NAV of supported stocks, ETFs and mutual funds with existing holdings -> cache on DB
     mdata.UpdateLastNAV()
@@ -67,8 +67,10 @@ def main():
     # 7) Calculations: compute portfolio summary and IRR%s -> cache on DB
     calc_summary.CalcPortfolioSummaryAndCacheOnDB()
     calc_returns.CalcIRRAndCacheOnDB()
-    calc_summary.StorePortfolioSummaryHistoryOnDB()
+    calc_summary.StorePortfolioSummaryHistoryOnDB()     # inc. IRR%
 
+
+def display_viz():
     # 8) Visualisations: load cached data from DB and plot various charts
     # text display in console
     viz.DisplayPnL()
@@ -91,6 +93,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+    display_viz()
 
 
 ##### END OF PROGRAMMING CODE #####
