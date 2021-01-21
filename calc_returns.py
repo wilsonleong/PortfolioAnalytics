@@ -283,13 +283,17 @@ def _xirr(values, dates):
 
 
 # calculate the IRR
-def CalcIRR(platform=None, bbgcode=None, period=None):
+def CalcIRR(platform=None,
+            bbgcode=None,
+            period=None
+            ):
     #platform = 'FSM HK'
     #bbgcode = 'ARKK US'
     #period = None      #since inception
     #period = 'YTD'
     #period = '1Y'
     #period = '3M'
+    #period='2020'
     #platform,bbgcode,period=None,None,None
     df = setup.GetAllTransactions()
     list_of_supported_securities = setup.GetListOfSupportedInstruments()
@@ -303,7 +307,8 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
         df = df[df.BBGCode==bbgcode]
 
     # get the start date for cashflows (the sum of anything before needs to be added as a single cashflow)
-    date_range_start = util.GetStartDate(period)
+    #date_range_start = util.GetStartDate(period)
+    date_range_start, date_range_end = util.GetDates(period)
     
     # apply the start date from applicable transactions
     earliest_transaction_date = df.Date.min()
@@ -331,7 +336,11 @@ def CalcIRR(platform=None, bbgcode=None, period=None):
 
     if PerformCalc:
         # process cashflows
-        cf = df[df.Date >= date_range_start_dt].copy()
+        
+        # cashflow needs to start after the start date, because the ptf val would have included transactions inc. on the same day
+        cf = df[df.Date > date_range_start_dt].copy()
+        
+        #cf = df[df.Date >= date_range_start_dt].copy()
         cf.loc[cf.Type=='Buy', 'Cashflow'] = cf.loc[cf.Type=='Buy', 'CostInPlatformCcy'] * -1
         # realised PnL needs to be taken into account to the cashflow calculation too!
         cf.loc[cf.Type=='Sell', 'Cashflow'] = cf.loc[cf.Type=='Sell', 'CostInPlatformCcy'] * -1 + cf.loc[cf.Type=='Sell', 'RealisedPnL']

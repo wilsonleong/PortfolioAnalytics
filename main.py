@@ -35,7 +35,7 @@ timer_start = datetime.datetime.now()
 
 ##### START OF PROGRAMMING CODE #####
 import setup
-import viz
+
 import mdata
 import calc_summary
 import calc_returns
@@ -72,6 +72,8 @@ def main():
 
 def display_viz():
     # 8) Visualisations: load cached data from DB and plot various charts
+    import viz
+    
     # text display in console
     viz.DisplayPnL()
     viz.DisplayPortfolioSummary()
@@ -93,7 +95,7 @@ def display_viz():
 
 if __name__ == "__main__":
     main()
-    display_viz()
+    #display_viz()
 
 
 ##### END OF PROGRAMMING CODE #####
