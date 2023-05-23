@@ -16,11 +16,14 @@ import setup
 import pandas as pd
 import numpy as np
 import dateutil.relativedelta
+from dateutil.relativedelta import relativedelta, FR
 import calc_summary
 import calc_fx
 import mdata
 import util
 
+from pyfinmod.basic import irr
+#https://medium.com/@andrewcole.817/python-for-quick-financial-functions-bf7c301f9a27
 
 # function to get the balance brought forward (of supported instruments)
 # returns list of holdings, cost and valuation in HKD at the given start date
@@ -41,15 +44,17 @@ def _GetExistingHoldings(start_date, bbgcode=None, platform=None, base_ccy='HKD'
     val = val[val.Date<start_date]
 
     for i in range(len(holdings)):
-        row = holdings.iloc[i]
+        #row = holdings.iloc[i]
+        row = holdings.loc[holdings.index[i]]
         holdings.loc[i,'PlatformCcy'] = setup.GetPlatformCurrency(row.Platform)
         holdings.loc[i,'SecurityCcy'] = setup.GetSecurityCurrency(row.BBGCode)
         
         # add valuation here
         v = val[val.BBGCode==row.BBGCode]
         if len(v)==0:
-            print ('WARNING: no market data - check feed/date range')
-        holdings.loc[i,'Close'] = v.iloc[-1].Close
+            print ('WARNING: no market data for %s - check feed/date range' % (row.BBGCode))
+        #holdings.loc[i,'Close'] = v.iloc[-1].Close
+        holdings.loc[i,'Close'] = v.loc[v.index[-1],'Close']
         holdings.loc[i,'ValuationInSecCcy'] = holdings.loc[i,'Close'] * row.NoOfUnits
         
         # calc base ccy equivalent
@@ -66,14 +71,15 @@ def _GetExistingHoldings(start_date, bbgcode=None, platform=None, base_ccy='HKD'
     return holdings
 
 
-# function to return valuation and cash flows as of particular date
-def _GetValuation(start_date):
-    row = hist_valuation[hist_valuation.Date<=start_date]
-    if len(row)==0:
-        val = 0
-    else:
-        val = row.ValuationHKD.iloc[-1]
-    return val
+# # function to return valuation and cash flows as of particular date
+# def _GetValuation(start_date):
+#     row = hist_valuation[hist_valuation.Date<=start_date]
+#     if len(row)==0:
+#         val = 0
+#     else:
+#         #val = row.ValuationHKD.iloc[-1]
+#         val = row.ValuationHKD.iloc[-1]
+#     return val
 
 
 # calculate the value of a security (returns time series) - this works only when bbgcode is specified
@@ -82,6 +88,11 @@ def _CalcValuation(bbgcode, platform=None, start_date=None):
     #bbgcode='XLE US'
     #platform='FSM HK'
     #bbgcode='SCHSEAI SP'
+    
+    # adjustment added on 23 May 2023
+    # if start_date is a Saturday or Sunday, then move it to Friday
+    if start_date.weekday()>=6:
+        start_date = start_date + relativedelta(weekday=FR(-1))
     
     tn = setup.GetAllTransactions()
     # filter by platform and bbgcode
@@ -102,31 +113,49 @@ def _CalcValuation(bbgcode, platform=None, start_date=None):
     
     hd = mdata.GetHistoricalData(bbgcode=bbgcode)
     hd = hd[['Date','Close']]
+    
+    # valuation before start of date range
     hd_prev = hd[hd.Date<start_date].copy()
     hd_prev = hd_prev.tail(1)
     
     # filter by selected date range
     hd = hd[hd.Date>=start_date]
     # filter by date until its no longer held
-    if tn.NoOfUnits.sum()==0:
+    if tn.NoOfUnits.sum()<=0:
         hd = hd[hd.Date<=tn.Date.max()]
     # add back last valuation before beginning of date range
-    hd = hd.append(hd_prev)
+    #hd = hd.append(hd_prev)
+    hd = pd.concat([hd, hd_prev], axis=0, ignore_index=True)
     
     hd = hd.sort_values(['Date'], ascending=True)
     
     tn = tn[['Date','NoOfUnits']]
     tn = tn[tn.Date>=start_date]
     
-    # CAREFUL: if the transaction date is a holiday where there is no market data, the holdings will be missed
+    # create df for historical valuation and no of units
+    df = pd.merge(hd, tn, how='left', on='Date')
     
+    # CAREFUL: if the transaction date is a holiday where there is no market data, the holdings will be missed
     # add balance brought forward
     bf = _GetExistingHoldings(start_date, platform=platform)
     bf = bf[bf.BBGCode==bbgcode]
-    df = pd.merge(hd, tn, how='left', on='Date')
     # if there is balance b/f, then add it
-    if len(bf)>0:
-        df.loc[0,'NoOfUnits'] = bf.iloc[0].NoOfUnits
+    if len(bf) > 0:
+        #df.loc[0,'NoOfUnits'] = bf.iloc[0].NoOfUnits
+        df.loc[0,'NoOfUnits'] = bf.loc[bf.index[0],'NoOfUnits']
+
+    # CAREFUL: if historical data is not available, calc b/f as of start of data available date
+    hd_min_date = hd.Date.min()
+    tn_min_date = tn.Date.min()
+    
+    # if historical data isn't available from the beginning, add b/f as of start of data available date
+    if hd_min_date > tn_min_date:
+        bal_bf = tn[tn.Date<=hd_min_date].NoOfUnits.sum()
+        if np.isnan(df.loc[0,'NoOfUnits']):
+            df.loc[0,'NoOfUnits'] = bal_bf
+        else:
+            df.loc[0,'NoOfUnits'] = df.loc[0,'NoOfUnits'] + bal_bf
+    
     df.NoOfUnits.fillna(0, inplace=True)
     df['Holdings'] = df.NoOfUnits.cumsum()
     # security currency
@@ -178,7 +207,8 @@ def CalcPortfolioHistoricalValuation(platform=None, bbgcode=None, start_date=Non
         # remove redundant rows
         tmp = tmp[~((tmp.NoOfUnits==0) & (tmp.Holdings==0))]
         tmp['BBGCode'] = bbgcode
-        df = df.append(tmp, ignore_index=False)
+        #df = df.append(tmp, ignore_index=False)
+        df = pd.concat([df, tmp], ignore_index=True, axis=0)
 
     # on each unique date, take the last row of unique security to avoid duplicated valuation
     df.sort_values(['Date','BBGCode'], inplace=True)
@@ -210,7 +240,8 @@ def CalcPortfolioHistoricalCost(platform=None, start_date=None, base_ccy='HKD'):
         bf = bf[bf.Platform==platform]
     
     for i in range(len(bf)):
-        row = bf.iloc[i]
+        #row = bf.iloc[i]
+        row = bf.loc[bf.index[0]]
         dic = {'Platform':row.Platform,
                'Date':start_date,
                'Type':'Buy',
@@ -218,7 +249,8 @@ def CalcPortfolioHistoricalCost(platform=None, start_date=None, base_ccy='HKD'):
                'CostInPlatformCcy':row.CostInPlatformCcy,
                'NoOfUnits':row.NoOfUnits
                }
-        tn_cost = tn_cost.append(dic, ignore_index=True)
+        #tn_cost = tn_cost.append(dic, ignore_index=True)
+        tn_cost = pd.concat([tn_cost, pd.DataFrame([dic])], axis=0, ignore_index=True)
     tn_cost.sort_values(['Date','BBGCode'], inplace=True)
 
     # convert all values into HKD before aggregating (need to convert platform ccy to HKD)
@@ -289,6 +321,7 @@ def CalcIRR(platform=None,
             ):
     #platform = 'FSM HK'
     #bbgcode = 'ARKK US'
+    #bbgcode = 'XLE US'
     #period = None      #since inception
     #period = 'YTD'
     #period = '1Y'
@@ -307,7 +340,6 @@ def CalcIRR(platform=None,
         df = df[df.BBGCode==bbgcode]
 
     # get the start date for cashflows (the sum of anything before needs to be added as a single cashflow)
-    #date_range_start = util.GetStartDate(period)
     date_range_start, date_range_end = util.GetDates(period)
     
     # apply the start date from applicable transactions
@@ -327,24 +359,22 @@ def CalcIRR(platform=None,
         df = df[df.Date >= date_range_start_dt]
         if earliest_transaction_date > date_range_start:
             # if the first transaction is after the beginning of specified period, no need to calc IRR
-            irr = np.nan
+            irr_value = np.nan
             PerformCalc = False
             dic = {'StartDate':date_range_start_dt,
                    'InitialCashflow':None,
                    'FinalCashflow':None,
-                   'IRR':irr}
+                   'IRR':irr_value}
 
     if PerformCalc:
         # process cashflows
         
         # cashflow needs to start after the start date, because the ptf val would have included transactions inc. on the same day
-        cf = df[df.Date > date_range_start_dt].copy()
+        cf = df[(df.Date>date_range_start_dt) & (df.Date <= date_range_end)].copy()
         
-        #cf = df[df.Date >= date_range_start_dt].copy()
+        # compute cashflows
         cf.loc[cf.Type=='Buy', 'Cashflow'] = cf.loc[cf.Type=='Buy', 'CostInPlatformCcy'] * -1
-        # realised PnL needs to be taken into account to the cashflow calculation too!
         cf.loc[cf.Type=='Sell', 'Cashflow'] = cf.loc[cf.Type=='Sell', 'CostInPlatformCcy'] * -1 + cf.loc[cf.Type=='Sell', 'RealisedPnL']
-        #+ cf.loc[cf.Type=='Sell', 'RealisedPnL'] * -1
         cf.loc[cf.Type=='Dividend', 'Cashflow'] = cf.loc[cf.Type=='Dividend', 'RealisedPnL']
 
         # get platform and currency
@@ -364,6 +394,9 @@ def CalcIRR(platform=None,
             val = CalcPortfolioHistoricalValuation(platform=platform, bbgcode=bbgcode, start_date=date_range_start_dt)
             val.rename(columns={'ValuationHKD':'Cashflow'}, inplace=True)
         else:
+            # calculate the valuation as of start date (this will take a while)
+            # BUG: if start date falls on a weekend or holiday without market data, val=0 which is wrong
+            # FIX: need to take valuation from few days ago
             val = _CalcValuation(bbgcode=bbgcode, start_date=date_range_start_dt)
             val.rename(columns={'ValuationHKD':'Cashflow'}, inplace=True)
             val = val[['Date','Cashflow']]
@@ -372,41 +405,52 @@ def CalcIRR(platform=None,
         if period is not None:
             val_start = (val[(val.Date<=np.datetime64(date_range_start_dt)) & (val.index==val[val.Date<=np.datetime64(date_range_start_dt)].index.max())]).copy()
             val_start.loc[:,'Cashflow'] = val_start.loc[:,'Cashflow'] * -1
+            # assign date as start of date range date
+            val_start.loc[:,'Date'] = date_range_start
             val_start.rename(columns={'Cashflow':'CashflowInHKD'}, inplace=True)
-            cf = cf.append(val_start)
+            #cf = cf.append(val_start)
+            cf = pd.concat([cf, val_start], axis=0, ignore_index=True)
         else:
             val_start = pd.DataFrame(data={'Date':date_range_start_dt,'CashflowInHKD':0},
                                      columns=['Date','CashflowInHKD'],
                                      index=[0])
         
         # latest valuation
+        val = val[val.Date<=date_range_end]
         val_end = val[val.index==val.index.max()].copy()
         val_end.rename(columns={'Cashflow':'CashflowInHKD'}, inplace=True)
     
         # add latest valuation as final cashflow (only if there are still holdings)
-        #if (cf.Date.iloc[-1] != val.Date.iloc[0]) and val.Cashflow.iloc[0]!=0:
-        if val.Cashflow.iloc[-1]!=0:
-            cf = cf.append(val_end, ignore_index=True)
+        #if val.Cashflow.iloc[-1]!=0:
+        if val.loc[val.index[-1],'Cashflow']!=0:
+            #cf = cf.append(val_end, ignore_index=True)
+            cf = pd.concat([cf, val_end], axis=0, ignore_index=True)
     
         cf = cf.sort_values(['Date'])
         cf = cf.reset_index(drop=True)
     
         # annualised return
-        annualised_irr = _xirr(values=cf.CashflowInHKD.to_list(), dates=cf.Date.to_list())
+        #annualised_irr = _xirr(values=cf.CashflowInHKD.to_list(), dates=cf.Date.to_list())
+        # added 15 Mar 2022
+        cf2 = cf.copy()
+        cf2.rename({'Date':'date', 'CashflowInHKD':'cash flow'}, axis=1, inplace=True)
+        cf2.drop(['Cashflow'], axis=1, inplace=True)
+        annualised_irr = irr(cf2)[0]
         
         # convert back to period if period is < a year
-        no_of_days = (pd.to_datetime(cf.iloc[-1].Date) - pd.to_datetime(cf.iloc[0].Date)).days
+        #no_of_days = (pd.to_datetime(cf.iloc[-1].Date) - pd.to_datetime(cf.iloc[0].Date)).days
+        no_of_days = (pd.to_datetime(cf.loc[cf.index[-1],'Date']) - pd.to_datetime(cf.loc[cf.index[0],'Date'])).days
         if no_of_days < 365:
-            irr = (1+annualised_irr)**(no_of_days/365)-1
+            irr_value = (1+annualised_irr)**(no_of_days/365)-1
         else:
-            irr = annualised_irr
+            irr_value = annualised_irr
 
         # return the calc results
         dic = {'StartDate':date_range_start_dt,
-               'EndDate':cf.tail(1).Date.iloc[0],
-               'InitialCashflow':val_start.CashflowInHKD.iloc[0],
-               'FinalCashflow':val_end.CashflowInHKD.iloc[0],
-               'IRR':irr}
+               'EndDate':cf.loc[cf.index[-1],'Date'],
+               'InitialCashflow':val_start.loc[val_start.index[0],'CashflowInHKD'],
+               'FinalCashflow':val_end.loc[val_end.index[0],'CashflowInHKD'],
+               'IRR':irr_value}
     
     return dic
 #CalcIRR('FSM HK')
@@ -431,7 +475,8 @@ def CalcIRR(platform=None,
 # Calculates SPX performance: YTD 1W 1M 3M 6M 1Y 3Y 5Y
 def GetSPXReturns():
     spx = mdata.GetHistoricalSPX()
-    date_ranges = ['YTD','1W','1M','3M','6M','1Y','3Y','5Y']
+    #date_ranges = ['YTD','1W','1M','3M','6M','1Y','3Y','5Y']
+    date_ranges = util.date_ranges
     start_dates = {}
     for i in range(len(date_ranges)):
         start_dates[date_ranges[i]] = util.GetStartDate(date_ranges[i])

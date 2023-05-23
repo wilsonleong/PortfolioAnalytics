@@ -60,10 +60,10 @@ def DisplayPnL():
     pnl_obj = calc_summary.GetHistoricalRealisedPnL()
     pnl = pnl_obj[1]
     pnl = pnl.reset_index()
-    print (pnl.groupby(['Platform','PlatformCurrency']).sum())
+    print (pnl.groupby(['Platform','PlatformCurrency']).agg({'RealisedPnL':'sum'}))
     
     # calculate and display the total realised PnL in a single currency
-    pnl_by_ccy = pnl.groupby(['PlatformCurrency']).sum()
+    pnl_by_ccy = pnl.groupby(['PlatformCurrency']).agg({'RealisedPnL':'sum'})
     for x in pnl_by_ccy.index:
         pnl_by_ccy.loc[x, 'RealisedPnLInHKD'] = calc_fx.ConvertTo('HKD', x, pnl_by_ccy.loc[x, 'RealisedPnL'])
     pnl_in_HKD = pnl_by_ccy.RealisedPnLInHKD.sum()
@@ -170,16 +170,25 @@ def DisplayReturnPct():
     comp_full_text = '%s\nSPX\nby %s' % (comp_label, '{:.2%}'.format(YTD_spx_diff))
     #comp_full_text = '%s SPX by %s bps' % (comp_label, int((YTD_spx_diff*10000)))
 
-    # compare porfolio returns vs SPX (5Y)
-    spx_diff_5Y = returns_irr['5Y'] - spx.loc['5Y','AnnualisedReturn']
-    if spx_diff_5Y >= 0:
+    # # compare porfolio returns vs SPX (5Y)
+    # spx_diff_5Y = returns_irr['5Y'] - spx.loc['5Y','AnnualisedReturn']
+    # if spx_diff_5Y >= 0:
+    #     comp_label2 = 'Outperformed'
+    #     annotate_colour2 = 'tab:green'
+    # else:
+    #     comp_label2 = 'Underperformed'
+    #     annotate_colour2 = 'tab:red'
+    # comp_full_text2 = '%s\nSPX\nby %s' % (comp_label2, '{:.2%}'.format(spx_diff_5Y))
+
+    # compare porfolio returns vs SPX (3Y)
+    spx_diff_3Y = returns_irr['3Y'] - spx.loc['3Y','AnnualisedReturn']
+    if spx_diff_3Y >= 0:
         comp_label2 = 'Outperformed'
         annotate_colour2 = 'tab:green'
     else:
         comp_label2 = 'Underperformed'
         annotate_colour2 = 'tab:red'
-    comp_full_text2 = '%s\nSPX\nby %s' % (comp_label2, '{:.2%}'.format(spx_diff_5Y))
-
+    comp_full_text2 = '%s\nSPX\nby %s' % (comp_label2, '{:.2%}'.format(spx_diff_3Y))
 
     # plot the chart
     fig, ax = plt.subplots()
@@ -210,9 +219,9 @@ def DisplayReturnPct():
             arrowprops=dict(arrowstyle='-|>', color=annotate_colour)
             )
 
-    # add annotate text (5Y)
+    # add annotate text (3Y)
     ax.annotate(comp_full_text2,
-            xy=(list(date_ranges).index('5Y'), returns_irr['5Y']),
+            xy=(list(date_ranges).index('3Y'), returns_irr['3Y']),
             xytext=(0, 25),
             textcoords='offset points', 
             color=annotate_colour2,
@@ -282,7 +291,7 @@ def PlotPortfolioComposition():
     for i in range(len(labels)):
         labels_with_pct.append(labels[i][1:] + ' (%s)' % '{:,.2%}'.format(sizes[i]))
     fig, ax = plt.subplots(figsize=(12, 6), subplot_kw=dict(aspect="equal"))
-    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=-95)
+    wedges, texts = ax.pie(sizes, wedgeprops=dict(width=0.3), startangle=0)
     
     # set 75% transparency in the pie colour
     for i in range(len(wedges)):
@@ -382,10 +391,15 @@ def PlotAssetAllocationCurrencyExposure(group_small_items=0.01):
     pct2_small_ccy = list(pct2_small.SecurityCcy.unique())
     pct2_small_ccy = ', '.join(pct2_small_ccy)
     pct2 = pct2[pct2.Percentage>=group_small_items]
-    pct2 = pct2.append({'SecurityCcy': pct2_small_ccy,
-                        'CurrentValueInHKD': pct2_small.CurrentValueInHKD.sum(),
-                        'Percentage': pct2_small.Percentage.sum()
-                        }, ignore_index=True)
+    # pct2 = pct2.append({'SecurityCcy': pct2_small_ccy,
+    #                     'CurrentValueInHKD': pct2_small.CurrentValueInHKD.sum(),
+    #                     'Percentage': pct2_small.Percentage.sum()
+    #                     }, ignore_index=True)
+    dic = {'SecurityCcy': pct2_small_ccy,
+           'CurrentValueInHKD': pct2_small.CurrentValueInHKD.sum(),
+           'Percentage': pct2_small.Percentage.sum()
+           }
+    pct2 = pd.concat([pct2, pd.DataFrame([dic])], axis=0, ignore_index=True)
     
     categories2 = pct2[by2]
     values2 = pct2.Percentage
@@ -519,17 +533,16 @@ def PlotCostvsVal(period='6M', platform=None):
 
     # add subtitle with return %
     subtitle = 'Performance %s: %s' % (period, '{0:.2%}'.format(ar_etf['IRR']))
-    
     fig.suptitle(title, fontsize=12)
     ax.set(title=subtitle)
     
+    # format axis
     ax.set_ylabel('Amount (HKD)')
     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
     
     # plot the cost
     x1 = df.Date
     y1 = df.AccumCostHKD
-    #ax.plot(x1, y1, marker='.', linestyle='-')
     ax.plot(x1, y1, linestyle='-', label='Investment cost', alpha=0.75)
     
     # plot the valuation
@@ -537,33 +550,36 @@ def PlotCostvsVal(period='6M', platform=None):
     y2 = df.ValuationHKD
     ax.plot(x2, y2, linestyle='-', color='orange', label='Valuation')
     
-    if platform is None or platform=='FSM HK':
-        # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
-        x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
-        ax.annotate('Took profit: JETS',
-                    xy=('2020-11-24', y2.iloc[x2_pos]),
-                    xytext=(-125, 0),
-                    textcoords='offset points', color='gray',
-                    arrowprops=dict(arrowstyle='-|>', color='gray')
-                    )
+    # if platform is None or platform=='FSM HK':
+    #     # add annotation: 24 Nov 2020 took profit from Airlines, reinvested in ARKK
+    #     x2_pos = x2[x2 == datetime.datetime(2020, 11, 24)].index
+    #     ax.annotate('Took profit: JETS',
+    #                 xy=('2020-11-24', y2.iloc[x2_pos]),
+    #                 xytext=(0, -40),
+    #                 ha='center',
+    #                 textcoords='offset points', color='gray',
+    #                 arrowprops=dict(arrowstyle='-|>', color='gray')
+    #                 )
         
-        # add annotation: 4 Dec 2020 took profit from Tech
-        x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
-        ax.annotate('Took profit: VGT',
-                    xy=('2020-12-04', y2.iloc[x2_pos]),
-                    xytext=(-125, 0),
-                    textcoords='offset points', color='gray',
-                    arrowprops=dict(arrowstyle='-|>', color='gray')
-                    )
+    #     # add annotation: 4 Dec 2020 took profit from Tech
+    #     x2_pos = x2[x2 == datetime.datetime(2020, 12, 4)].index
+    #     ax.annotate('Took profit: VGT',
+    #                 xy=('2020-12-04', y2.iloc[x2_pos]),
+    #                 xytext=(-75, 30),
+    #                 textcoords='offset points', color='gray',
+    #                 arrowprops=dict(arrowstyle='-|>', color='gray')
+    #                 )
 
-        # add annotation: 8 Jan 2021 took profit from Schroder Asian Growth
-        x2_pos = x2[x2 == datetime.datetime(2021, 1, 8)].index
-        ax.annotate('Took profit: SCHSEAI SP',
-                    xy=('2021-01-08', y2.iloc[x2_pos]),
-                    xytext=(-150, -75),
-                    textcoords='offset points', color='gray',
-                    arrowprops=dict(arrowstyle='-|>', color='gray')
-                    )
+    #     # add annotation: 8 Jan 2021 took profit from Schroder Asian Growth
+    #     x2_pos = x2[x2 == datetime.datetime(2021, 1, 8)].index
+    #     ax.annotate('Took profit: SCHSEAI SP',
+    #                 xy=('2021-01-08', y2.iloc[x2_pos]),
+    #                 #xytext=(-125, -70),
+    #                 xytext=(0, -50),
+    #                 ha='center',
+    #                 textcoords='offset points', color='gray',
+    #                 arrowprops=dict(arrowstyle='-|>', color='gray')
+    #                 )
 
     # plot major gridlines on y-axis
     for ymaj in ax.yaxis.get_majorticklocs():
@@ -573,8 +589,6 @@ def PlotCostvsVal(period='6M', platform=None):
     plt.xticks(rotation=45, ha='right')
 
     # add legend
-    #ax.legend(frameon=False, loc='lower center', ncol=2)
-    #ax.legend(frameon=True, loc='best', ncol=1)
     ax.legend(frameon=True, loc='upper left', ncol=1)
 
     # save output as PNG
@@ -582,9 +596,7 @@ def PlotCostvsVal(period='6M', platform=None):
     output_fullpath = '%s/%s' % (_output_dir, output_filename)
     fig.savefig(output_fullpath, format='png', dpi=150, bbox_inches='tight')
     plt.show()
-#PlotCostvsVal(period='6M', platform='FSM HK')
 #PlotCostvsVal(period='3M', platform='FSM HK') #BUGGED (chart code)
-#PlotCostvsVal(period='6M', platform='FSM SG')
 
 
 # This function plots the top holdings in the portfolio, displayed in both HKD value and % of portfolio total.
@@ -623,14 +635,14 @@ def PlotTopHoldings():
                  )
     plt.gca().invert_yaxis()
     
-    # add legend
-    labels = list(cats_colour.keys())
-    handles = [plt.Rectangle((0,0),1,1, color=cats_colour[label]) for label in labels]
-    plt.legend(handles, labels, title='Category', loc='best')
-
     # plot major gridlines
     for xmaj in ax1.xaxis.get_majorticklocs():
         ax1.axvline(x=xmaj, ls=':', lw=0.25, color='gray')
+
+    # add legend
+    labels = list(cats_colour.keys())
+    handles = [plt.Rectangle((0,0),1,1, color=cats_colour[label]) for label in labels]
+    plt.legend(handles, labels, title='Category', loc='lower right')
 
     # save output as PNG
     output_filename = 'TopHoldings.png'
@@ -656,7 +668,7 @@ def PlotRealisedPnLOverTime(period='6M'):
     ToHKD = {'HKD':1, 'SGD':SGDHKD, 'GBP':GBPHKD}
     chart_data['PnLInHKD'] = chart_data.PlatformCurrency.map(ToHKD) * chart_data.RealisedPnL
     chart_data.drop(['RealisedPnL'], axis=1, inplace=True)
-    chart_data_grouped = chart_data.groupby([pd.Grouper(key='Date', freq='MS'), 'Type']).sum()
+    chart_data_grouped = chart_data.groupby([pd.Grouper(key='Date', freq='MS'), 'Type']).agg({'PnLInHKD':'sum'})
     chart_data_grouped = chart_data_grouped.reset_index()
     
     #labels = chart_data_grouped.index.get_level_values('Date')
@@ -709,6 +721,7 @@ def PlotRealisedPnLOverTime(period='6M'):
 # This function plots the performance of top holdings over a specified period.
 def PlotPerformanceOfHoldings(period='3M'):
     # get the start date
+    period = period.upper()
     start_date = util.GetStartDate(period)
     
     # get the list of instruments
@@ -722,6 +735,12 @@ def PlotPerformanceOfHoldings(period='3M'):
     hp = mdata.GetHistoricalData()
     hp = hp[hp.BBGCode.isin(top10tickers)]
     hp = hp[hp.Date>=start_date]
+
+    # get the SPX data as reference/benchmark
+    spx = mdata.GetHistoricalSPX()
+    spx = spx[spx.Date>=start_date]
+    base = spx.SPX.iloc[0]
+    spx.loc[:,'AdjustedIndex'] = spx.loc[:,'SPX'] / base * 100
     
     # plot the chart
     title = 'Top Holdings Performance (%s)' % period
@@ -729,6 +748,12 @@ def PlotPerformanceOfHoldings(period='3M'):
     fig, ax = plt.subplots()
     ax.set_ylabel('Price Index')
     ax.yaxis.set_major_formatter(mpl.ticker.StrMethodFormatter('{x:,.0f}'))
+
+    # plot S&P 500 as benchmark
+    label = 'S&P 500'
+    x = spx.Date
+    y = spx.AdjustedIndex
+    ax.plot(x, y, linestyle=(0,(1,1)), label=label, color='gray', alpha=0.75)
     
     # plot the cost
     for i in reversed(range(len(top10tickers))):
@@ -822,11 +847,13 @@ def PlotLeadersAndLaggers(period=None, top_n=5):
     # add blank rows to Gainers
     if nrows_to_add_leaders > 0:
         for i in range(nrows_to_add_leaders):
-            leaders = leaders.append(dic, ignore_index=True)
+            #leaders = leaders.append(dic, ignore_index=True)
+            leaders = pd.concat([leaders, pd.DataFrame([dic])], axis=0, ignore_index=True)
     # add blank rows to Losers
     if nrows_to_add_laggers > 0:
         for i in range(nrows_to_add_laggers):
-            laggers = laggers.append(dic, ignore_index=True)
+            #laggers = laggers.append(dic, ignore_index=True)
+            laggers = pd.concat([laggers, pd.DataFrame([dic])], axis=0, ignore_index=True)
 
 
     # plot the charts
@@ -917,7 +944,6 @@ def PlotHistoricalSnapshot(period='6M', by=None):
     # set the date range
     if period is not None:
         start_date = util.GetStartDate(period)
-        #start_date = datetime.datetime.combine(start_date, datetime.datetime.min.time())
 
     # prepare the data
     df = calc_summary.GetHistoricalSnapshotFromDB()
@@ -928,41 +954,33 @@ def PlotHistoricalSnapshot(period='6M', by=None):
     hist = pd.DataFrame()
     for i in range(len(dic)):
         ps = pd.DataFrame(dic[i]['PortfolioSummary'])
-        hist = hist.append(ps)
+        #hist = hist.append(ps)
+        hist = pd.concat([hist, ps], axis=0, ignore_index=True)
     
     # check if data exists for this date, if so, take the later one
-    #hist['dt'] = pd.to_datetime(hist.Date.dt.date)
+    a = hist.groupby([by,'Date']).agg({'ValueInHKD':'sum'})
+    #b = a.reset_index().pivot('Date', by, 'ValueInHKD')
+    b = a.reset_index().pivot(columns=by, index=['Date'], values='ValueInHKD')
+    b.fillna(0, inplace=True)
     
     # plot each category as a separate series
     cats = list(hist[by].unique())
     cats.sort()
-    series_data = []
-    for x in cats:
-        category = x
-        # for each category, need to get the total for each date
-        cat_data = hist[hist[by]==x].groupby('Date').agg({'ValueInHKD':'sum'}).reset_index()
-        dates = list(cat_data.Date)
-        values = list(cat_data.ValueInHKD)
-        series_data.append({'BreakdownBy':category,
-                            'Dates':dates,
-                            'Values':values})
     colours = list(mcolors.TABLEAU_COLORS)[:len(cats)]
     
     # plot the chart
     fig, ax = plt.subplots()
-    stacked_height = np.array([0] * len(series_data[0]['Dates']))
+    stacked_height = np.array([0] * len(b.index))
+
     for i in range(len(cats)):
-        ax.bar(#x = series_data[i]['Dates'],
-               x = df.Date,
-               height = series_data[i]['Values'],
+        ax.bar(x = df.Date,
+               height = b[list(b.columns)[i]],
                bottom = stacked_height,
-               #width = 5,
-               #alpha=0.5,
-               label = series_data[i]['BreakdownBy'],
+               label = list(b.columns)[i],
                color=colours[i],
                alpha=0.75
                )
-        stacked_height = stacked_height + np.array(series_data[i]['Values'])
+        stacked_height = stacked_height + b[list(b.columns)[i]]
 
     # format the chart
     ax.set_ylabel('Total Net Worth (HKD)')
@@ -975,7 +993,6 @@ def PlotHistoricalSnapshot(period='6M', by=None):
     plt.xticks(rotation=45, ha='right')
     
     # add legend
-    #ax.legend(loc='best')
     plt.legend(bbox_to_anchor=(1.04,1), loc='upper left')
     
     # save output as PNG

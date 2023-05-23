@@ -221,7 +221,10 @@ def UpdateLatestFXrates():
         row = df.iloc[i]
         tmp = mdata.GetLatestPrice(mdata.Ccypair2YFTicker(row.Ccypair))
         df.loc[i,'Rate'] = tmp['last_price']
-        df.loc[i,'LastUpdated'] = tmp['last_updated']
+        
+        # added 16 Jan 2023: YF added timezone to timestamps; take value now (tz naive) instead
+        #df.loc[i,'LastUpdated'] = tmp['last_updated']
+        df.loc[i,'LastUpdated'] = datetime.datetime.now()
     
     # save latest rates into file
     df.to_excel(_FXfile, index=False)
@@ -292,7 +295,7 @@ def InitialSetup():
 
 
 # insert transactions from start date (removes anything from start date first)
-def InsertHistTransactions(start_date=datetime.datetime(2020,12,1)):
+def InsertHistTransactions(start_date=datetime.datetime(2011,1,1)):
     print ('\nImporting historical transactions...')
     # connect to mongodb
     db = ConnectToMongoDB()
@@ -310,7 +313,7 @@ def InsertHistTransactions(start_date=datetime.datetime(2020,12,1)):
     for i in range(len(t)):
         Platform = t.iloc[i].Platform
         Date = t.iloc[i].Date
-        Date = datetime.datetime.utcfromtimestamp(Date.astype(datetime.datetime)*ns)
+        #Date = datetime.datetime.utcfromtimestamp(Date.astype(datetime.datetime)*ns)
         Type = t.iloc[i].Type
         BBGCode = t.iloc[i].BBGCode
         CostInPlatformCcy = round(t.iloc[i].CostInPlatformCcy,2)

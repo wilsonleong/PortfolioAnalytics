@@ -12,6 +12,7 @@ LastNavFilePath = r'D:\Wilson\Documents\Personal Documents\Investments\Portfolio
 
 
 import datetime
+import numpy as np
 import pandas as pd
 import yfinance as yf
 yf.pdr_override()
@@ -69,9 +70,16 @@ def UpdateLastNAV():
         last_price = tmp['last_price']
         last_updated = tmp['last_updated']
         df_api.loc[i,'LastNAV'] = last_price
-        df_api.loc[i,'LastUpdated'] = last_updated
-    df2 = df_manual.append(df_api)
+        
+        # modified 15 Jan 2023 since YahooFinance added timezone aware timestamps
+        #df_api.loc[i,'LastUpdated'] = last_updated
+        df_api.loc[i,'LastUpdated'] = datetime.datetime.now()
+        
+    #df2 = df_manual.append(df_api)
+    df2 = pd.concat([df_manual, df_api], ignore_index=True, axis=0)
+    
     df2 = df2.reset_index(drop=True)
+    
     df2.to_excel(LastNavFilePath, index=False)
     print ('(updated latest NAV on XLSX)')
 
@@ -107,7 +115,16 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
         date_to = dates['DateTo']       # this results in incorrect values for securites no longer held
         if date_from < start_date.date():
             date_from = start_date.date()
-        df = df.append({'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}, ignore_index=True)
+        # 18 Jan 2023: use concat instead
+        #df = df.append({'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([{'BBGCode':bbgcode,'YFTicker': yf_ticker,'DateFrom': date_from,'DateTo': date_to}])], ignore_index=True, axis=0)
+
+    # replace nan with None
+    #df = df.where(df.notnull(), None)
+    
+    # replace nan with default dates
+    df.loc[df.DateFrom.isnull(), 'DateFrom'] = datetime.date(2015,1,1)
+    df.loc[df.DateTo.isnull(), 'DateTo'] = None
 
     # loop through the list and collect the data from Yahoo
     data = pd.DataFrame()
@@ -116,7 +133,8 @@ def ProcessHistoricalMarketData(bbgcode=None, platform=None, start_date=None):
         tmp = pdr.get_data_yahoo(row.YFTicker, start=row.DateFrom, end=row.DateTo)
         tmp = tmp.reset_index()
         tmp['BBGCode'] = row.BBGCode
-        data = data.append(tmp, ignore_index=False)
+        #data = data.append(tmp, ignore_index=False)
+        data = pd.concat([data, tmp], ignore_index=True, axis=0)
     
     # added 15 Dec 2020: Yahoo Finance null rows?
     data = data[~data.Close.isnull()]

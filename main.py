@@ -41,13 +41,13 @@ import calc_summary
 import calc_returns
 import calc_val
 
-
 def main():
     # 1) Setup: update platform and security referential, cash balances -> cache on DB
     setup.InitialSetup()  # initial setup and other hardcoded transactions (exc import from FSM SG)
 
     # 2) Setup: process new transactions
-    setup.InsertHistTransactions(datetime.datetime(2021,1,1))
+    #setup.InsertHistTransactions()
+    setup.InsertHistTransactions(datetime.datetime(2023,1,1))
 
     # 3) Market data: collect the latest (including intra-day) NAV of supported stocks, ETFs and mutual funds with existing holdings -> cache on DB
     mdata.UpdateLastNAV()
@@ -62,7 +62,7 @@ def main():
 
     # 6) Market data: collect historical EOD market data of supported stocks, ETFs and mutual funds including those already sold -> cache on DB
     mdata.ProcessHistoricalMarketData()
-    mdata.ProcessHistoricalSPX()
+    mdata.ProcessHistoricalSPX() # problem: 11 Sep 2021
 
     # 7) Calculations: compute portfolio summary and IRR%s -> cache on DB
     calc_summary.CalcPortfolioSummaryAndCacheOnDB()
@@ -81,7 +81,7 @@ def display_viz():
     # charts
     viz.DisplayReturnPct()
     viz.PlotLeadersAndLaggers()
-    viz.PlotPerformanceOfHoldings(period='3M')
+    viz.PlotPerformanceOfHoldings(period='6M')
     viz.PlotCostvsVal(period='6M')
     viz.PlotRealisedPnLOverTime(period='6M')
     viz.PlotPortfolioComposition()
@@ -95,7 +95,7 @@ def display_viz():
 
 if __name__ == "__main__":
     main()
-    #display_viz()
+    display_viz()
 
 
 ##### END OF PROGRAMMING CODE #####

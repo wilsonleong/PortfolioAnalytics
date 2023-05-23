@@ -20,6 +20,7 @@ import calc_fx
 import calc_returns
 import mdata
 _output_dir = r'D:\Wilson\Documents\Personal Documents\Investments\PortfolioTracker\output'
+_MinNoOfUnits = 0.000001
 
 
 # # store a copy of the output on MongoDB for future reference
@@ -131,10 +132,12 @@ def GetPortfolioSummary():
             new_row['PnL'] = row.PnL * list(allianz_allocations[j].values())[0]
             new_row['RealisedPnL'] = row.RealisedPnL * list(allianz_allocations[j].values())[0]
             new_row['CurrentValueInHKD'] = row.CurrentValueInHKD * list(allianz_allocations[j].values())[0]
-            dfAllianzNew = dfAllianzNew.append(new_row)
+            #dfAllianzNew = dfAllianzNew.append(new_row)
+            dfAllianzNew = pd.concat([dfAllianzNew, pd.DataFrame([new_row])], axis=0, ignore_index=True)
     # replace the original rows with the new rows
     ps2 = ps[~ps.BBGCode.isin(allianz_bbgcodes)].copy()
-    ps2 = ps2.append(dfAllianzNew)
+    #ps2 = ps2.append(dfAllianzNew)
+    ps2 = pd.concat([ps2, dfAllianzNew], axis=0, ignore_index=True)
     
     # can't assign Portfolio % when Allianz is broken down into separate asset classes
     ps.loc[:,'PortfolioPct'] = ps.loc[:,'CurrentValueInHKD'] / ps.CurrentValueInHKD.sum()
@@ -142,6 +145,10 @@ def GetPortfolioSummary():
     # remove rows with 0 holdings
     ps = ps[ps.NoOfUnits!=0]
     ps2 = ps2[ps2.NoOfUnits!=0]
+
+    # remove rows with very tiny number of units in crypto
+    ps = ps[ps.NoOfUnits>_MinNoOfUnits]
+    ps2 = ps2[ps2.NoOfUnits>_MinNoOfUnits]
 
     PortfolioSummary = {'Original':ps,
                         'Adjusted':ps2}
@@ -217,6 +224,9 @@ def GetPortfolioSummaryIncCash():
     cash = setup.GetBankAndCashBalances()
     #ps = GetPortfolioSummary()
     #ps_adjusted = ps['Adjusted']
+    
+    # ISSUE: this bit here is not loading latest data???
+    
     ps_adjusted = GetPortfolioSummaryFromDB('Adjusted')
     ps_IncCash = ps_adjusted.copy()
     for i in range(len(cash)):
@@ -244,7 +254,8 @@ def GetPortfolioSummaryIncCash():
                'CurrentValueInHKD':current_value_in_HKD,
                'Category':row.Category
                }
-        ps_IncCash = ps_IncCash.append(dic, ignore_index=True)
+        #ps_IncCash = ps_IncCash.append(dic, ignore_index=True)
+        ps_IncCash = pd.concat([ps_IncCash, pd.DataFrame([dic])], axis=0, ignore_index=True)
     # recalculate % of total
     ps_IncCash.loc[:,'PortfolioPct'] = ps_IncCash.loc[:,'CurrentValueInHKD'] / ps_IncCash.CurrentValueInHKD.sum()
     return ps_IncCash
@@ -261,7 +272,6 @@ def CalcPortfolioSummaryAndCacheOnDB():
     ps = GetPortfolioSummary()
     ps_original = ps['Original']
     ps_adjusted = ps['Adjusted']
-    ps_adjustedIncCash = GetPortfolioSummaryIncCash() # inc cash is adjusted
     
     # fill blanks
     ps_adjusted['PortfolioPct'] = None
@@ -269,7 +279,6 @@ def CalcPortfolioSummaryAndCacheOnDB():
     # add summary type
     ps_original['SummaryType'] = 'Original'
     ps_adjusted['SummaryType'] = 'Adjusted'
-    ps_adjustedIncCash['SummaryType'] = 'AdjustedIncCash'
 
     # cache on DB
     coll.delete_many({'SummaryType':'Original'})
@@ -278,13 +287,12 @@ def CalcPortfolioSummaryAndCacheOnDB():
     coll.delete_many({'SummaryType':'Adjusted'})
     coll.insert_many(ps_adjusted.to_dict('records'))    
     
-    coll.delete_many({'SummaryType':'AdjustedIncCash'})
-    coll.insert_many(ps_adjustedIncCash.to_dict('records')) 
     print ('(updated portfolio summary on mongodb)')
     
-    # output to CSV file
-    ps_original = ps_original[['Platform','Name','BBGCode','WAC','LastNAV','LastUpdated','CostInHKD','CurrentValueInHKD','PnLInHKD','PnLPct','PortfolioPct']].copy()
-    ps_original.rename(columns={'LastNAV':'Last NAV',
+    # output portfolio summary (original) to CSV file
+    ps_original = ps_original[['Platform','Name','BBGCode','NoOfUnits','WAC','LastNAV','LastUpdated','CostInHKD','CurrentValueInHKD','PnLInHKD','PnLPct','PortfolioPct']].copy()
+    ps_original.rename(columns={'NoOfUnits':'Qty',
+                                'LastNAV':'Last NAV',
                                 'LastUpdated':'Last Updated',
                                 'WAC':'WA cost',
                                 'CostInHKD':'Cost (HKD)',
@@ -294,6 +302,16 @@ def CalcPortfolioSummaryAndCacheOnDB():
                                 'PortfolioPct':'% of Ptf'
                                 }, inplace=True)
     ps_original.to_csv(_output_dir + r'\ps_original.csv', index=False)
+
+
+    # Process [AdjustedIncCash] ONLY after [Adjusted] is calculated and cached on MongoDB
+    ps_adjustedIncCash = GetPortfolioSummaryIncCash() # inc cash is adjusted
+    ps_adjustedIncCash['SummaryType'] = 'AdjustedIncCash'
+    coll.delete_many({'SummaryType':'AdjustedIncCash'})
+    coll.insert_many(ps_adjustedIncCash.to_dict('records')) 
+
+    # output portfolio summary (inc cash) to CSV file
+    ps_adjustedIncCash.to_csv(_output_dir + r'\ps_inccash.csv', index=False)
     print ('(exported portfolio summary as CSV)')
 
 
@@ -330,8 +348,13 @@ def StorePortfolioSummaryHistoryOnDB():
     # get the portfolio summary
     now = datetime.datetime.now()
     ps_inc_cash = GetPortfolioSummaryFromDB(summary_type='AdjustedIncCash')
-    cols = ['Platform','AssetClass','SecurityType','Category','Name','CurrentValueInHKD']
+    cols = ['Platform','AssetClass','SecurityType','Category','Name','LastNAV','CurrentValueInHKD']
     ps = ps_inc_cash[cols].copy()
+    
+    # replace nan with Null
+    ps.LastNAV = ps.LastNAV.astype(object)
+    ps.loc[ps.LastNAV.isnull(),'LastNAV'] = None
+    
     ps.rename(columns={'CurrentValueInHKD':'ValueInHKD'}, inplace=True)
     ps['Date'] = now
     
